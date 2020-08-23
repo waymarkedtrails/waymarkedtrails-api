@@ -12,9 +12,9 @@ import sqlalchemy as sa
 from wmt_shields import ShieldFactory
 from wmt_shields.wmt_config import WmtConfig
 
-from api import listings, tiles
-from api.details import base as details
-import db.directive
+from . import listings, tiles
+from .details import base as details
+from ..db.directive import connection, status_table
 
 # XXX configure
 shield_factory = ShieldFactory(
@@ -36,8 +36,7 @@ class StatusOutput(NamedTuple):
     last_update: str
 
 @hug.get(versions=1)
-def status(conn: db.directive.connection,
-           status: db.directive.status_table) -> StatusOutput:
+def status(conn: connection, status: status_table) -> StatusOutput:
     """ Return the current status of the API in JSON format.
     """
     res = conn.scalar(sa.select([status.c.date]).where(status.c.part == 'base'))

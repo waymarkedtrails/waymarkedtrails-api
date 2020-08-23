@@ -3,8 +3,8 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
-from api import base as api
-from db.context import DbContext
+from wmt_api import api
+from wmt_api.db.context import DbContext
 import hug
 
 @hug.context_factory()
