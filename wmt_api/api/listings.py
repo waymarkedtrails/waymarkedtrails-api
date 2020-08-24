@@ -1,16 +1,32 @@
 import hug
+from collections import OrderedDict
 
-@hug.type(extend=hug.types.text)
-def bbox_type(value):
-    "A bounding box of the form: `x1, y2, x2, y2`."
-    return value
+from ..db.directive import connection, routes_table
+from ..common.types import bbox_type
+
+hug.defaults.cli_output_format = hug.output_format.json
+
+
+
+def create_route_list(qkey, qvalue, res):
+    out = OrderedDict()
+    out[qkey] = qvalue
+    #out['symbol_url'] = '%(MEDIA_URL)s/symbols/%(BASENAME)s/' % (
+    #                       cherrypy.request.app.config['Global'])
+    #out['results'] = [api.common.RouteDict(r) for r in res]
+
+    return out
 
 @hug.get()
-def by_area(bbox: bbox_type, limit: hug.types.in_range(1, 100) = 20):
-    """ Return an list of routes within the given area. `bbox` describes the
+@hug.cli()
+def by_area(conn: connection, status: routes_table,
+            bbox: bbox_type, limit: hug.types.in_range(1, 100) = 20):
+    """ Return the list of routes within the given area. `bbox` describes the
         area given, `limit` describes the maximum number of results.
     """
-    return "TODO"
+    print(str(bbox))
+    print(str(limit))
+    return create_route_list('bbox', bbox, None)
 
 @hug.get()
 def by_ids(ids: hug.types.delimited_list(',')):

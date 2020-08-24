@@ -14,3 +14,7 @@ def connection(default=False, context : DbContext=None, **kwargs):
 @hug.directive()
 def status_table(default=False, context : DbContext=None, **kwargs):
     return context.tables.status
+
+@hug.directive()
+def routes_table(default=False, context : DbContext=None, **kwargs):
+    return context.tables.routes
