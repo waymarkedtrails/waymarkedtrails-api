@@ -5,45 +5,28 @@
 
 import hug
 from typing import NamedTuple
-from datetime import datetime as dt
-
-import sqlalchemy as sa
-
-from wmt_shields import ShieldFactory
-from wmt_shields.wmt_config import WmtConfig
 
 from . import listings, tiles
 from .details import base as details
-from ..db.directive import connection, status_table
+from ..db.directive import connection, status_table, shield_factory
 
-# XXX configure
-shield_factory = ShieldFactory(
-                ('.slope_symbol',
-                 '.nordic_symbol',
-                 '.image_symbol',
-                 '.cai_hiking_symbol',
-                 '.swiss_mobile',
-                 '.jel_symbol',
-                 '.kct_symbol',
-                 '.osmc_symbol',
-                 '.ref_color_symbol',
-                 '.ref_symbol',
-                 '.color_box'
-                ), WmtConfig())
+hug.defaults.cli_output_format = hug.output_format.json
 
 class StatusOutput(NamedTuple):
     server_status: str
     last_update: str
 
 @hug.get(versions=1)
+@hug.cli()
 def status(conn: connection, status: status_table) -> StatusOutput:
     """ Return the current status of the API in JSON format.
     """
-    res = conn.scalar(sa.select([status.c.date]).where(status.c.part == 'base'))
+    res = status.get_date(conn, part='base')
 
     if not res:
         return StatusOutput('DOWN', '')
 
+    print("AAA", res)
     return StatusOutput('OK', res)
 
 @hug.format.content_type('image/svg+xml')
@@ -51,10 +34,10 @@ def format_as_shield(data, request=None, response=None):
     return data.create_image('svg')
 
 @hug.get(output=format_as_shield)
-def symbols(**kwargs) -> 'SVG image of a shield':
+def symbols(factory: shield_factory, **kwargs) -> 'SVG image of a shield':
     """ Create a route shield from a set of OSM tags. The tag list must be
         given as keyword parameters."""
-    sym = shield_factory.create(kwargs, '', style='NAT')
+    sym = factory.create(kwargs, '', style='NAT')
     if sym is None:
         raise hug.HTTPNotFound()
 

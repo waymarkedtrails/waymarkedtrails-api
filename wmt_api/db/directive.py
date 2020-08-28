@@ -18,3 +18,7 @@ def status_table(default=False, context : DbContext=None, **kwargs):
 @hug.directive()
 def routes_table(default=False, context : DbContext=None, **kwargs):
     return context.tables.routes
+
+@hug.directive()
+def shield_factory(default=False, context : DbContext=None, **kwargs):
+    return context.config.shield_factory

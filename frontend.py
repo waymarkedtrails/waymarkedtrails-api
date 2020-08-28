@@ -5,18 +5,22 @@
 
 from wmt_api import api
 from wmt_api.db.context import DbContext
+from wmt_api.config import ApiConfig
 import hug
+import os
 
 @hug.startup()
 def init_settings(api):
     # see https://github.com/hugapi/hug/issues/623
     if isinstance(api, hug.api.HTTPInterfaceAPI):
-        api.http.falcon.req_options.auto_parse_qs_csv = False
+        api.http.falcon.req_options.auto_parse_qs_csv = Fals
+
+    DbContext.init_db(ApiConfig())
 
 
 @hug.context_factory()
 def create_context(*args, **kwargs):
-    return DbContext('hiking', database='planet')
+    return DbContext()
 
 hug.API(__name__).extend(api, '/api')
 
