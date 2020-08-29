@@ -21,4 +21,8 @@ def tables(default=False, context : ApiContext=None, **kwargs):
 
 @hug.directive()
 def shield_factory(default=False, context : ApiContext=None, **kwargs):
-    return context.shield_factory
+    return context.shield_config
+
+@hug.directive()
+def db_config(default=False, context : ApiContext=None, **kwargs):
+    return context.db_config
