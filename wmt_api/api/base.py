@@ -6,9 +6,9 @@
 import hug
 from typing import NamedTuple
 
-from . import listings, tiles
+from . import listings, tiles, symbols
 from .details import base as details
-from ..common.directive import connection, status_table, shield_factory
+from ..common.directive import connection, status_table
 
 class StatusOutput(NamedTuple):
     server_status: str
@@ -26,20 +26,11 @@ def status(conn: connection, status: status_table) :
 
     return StatusOutput('OK', res.isoformat())
 
-@hug.format.content_type('image/svg+xml')
-def format_as_shield(data, request=None, response=None):
-    return data.create_image('svg')
 
-@hug.get(output=format_as_shield)
-def symbols(factory: shield_factory, **kwargs) -> 'SVG image of a shield':
-    """ Create a route shield from a set of OSM tags. The tag list must be
-        given as keyword parameters."""
-    sym = factory.create(kwargs, '', style='NAT')
-    if sym is None:
-        raise hug.HTTPNotFound()
-
-    return sym
-
+@hug.extend_api('/symbols')
+def symbols_api():
+    "The symbols API returns shields for routes."
+    return [symbols]
 
 @hug.extend_api('/list')
 def listing_api():
