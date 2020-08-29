@@ -4,8 +4,7 @@
 # Copyright (C) 2020 Sarah Hoffmann
 
 from wmt_api import api
-from wmt_api.db.context import DbContext
-from wmt_api.config import ApiConfig
+from wmt_api.common.context import ApiContext
 import hug
 import os
 
@@ -15,12 +14,12 @@ def init_settings(api):
     if isinstance(api, hug.api.HTTPInterfaceAPI):
         api.http.falcon.req_options.auto_parse_qs_csv = Fals
 
-    DbContext.init_db(ApiConfig())
+    ApiContext.init_globals(os.environ['WMT_CONFIG'])
 
 
 @hug.context_factory()
 def create_context(*args, **kwargs):
-    return DbContext()
+    return ApiContext()
 
 hug.API(__name__).extend(api, '/api')
 

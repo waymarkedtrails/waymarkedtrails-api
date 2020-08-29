@@ -8,17 +8,15 @@ from typing import NamedTuple
 
 from . import listings, tiles
 from .details import base as details
-from ..db.directive import connection, status_table, shield_factory
-
-hug.defaults.cli_output_format = hug.output_format.json
+from ..common.directive import connection, status_table, shield_factory
 
 class StatusOutput(NamedTuple):
     server_status: str
     last_update: str
 
 @hug.get(versions=1)
-@hug.cli()
-def status(conn: connection, status: status_table) -> StatusOutput:
+@hug.cli(output=hug.output_format.json)
+def status(conn: connection, status: status_table) :
     """ Return the current status of the API in JSON format.
     """
     res = status.get_date(conn, part='base')
@@ -26,8 +24,7 @@ def status(conn: connection, status: status_table) -> StatusOutput:
     if not res:
         return StatusOutput('DOWN', '')
 
-    print("AAA", res)
-    return StatusOutput('OK', res)
+    return StatusOutput('OK', res.isoformat())
 
 @hug.format.content_type('image/svg+xml')
 def format_as_shield(data, request=None, response=None):

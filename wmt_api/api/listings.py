@@ -1,7 +1,7 @@
 import hug
 from collections import OrderedDict
 
-from ..db.directive import connection, routes_table
+from ..common import directive
 from ..common.types import bbox_type
 
 hug.defaults.cli_output_format = hug.output_format.json
@@ -19,7 +19,7 @@ def create_route_list(qkey, qvalue, res):
 
 @hug.get()
 @hug.cli()
-def by_area(conn: connection, status: routes_table,
+def by_area(conn: directive.connection, tables: directive.tables,
             bbox: bbox_type, limit: hug.types.in_range(1, 100) = 20):
     """ Return the list of routes within the given area. `bbox` describes the
         area given, `limit` describes the maximum number of results.
