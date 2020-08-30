@@ -7,13 +7,25 @@ import hug
 from collections import OrderedDict
 
 from ...common import directive
-from ...common.types import bbox_type
+from ...common.types import bbox_type, ListOfIds
 from ...output.route_list import RouteList
 from ...output.route_item import RouteItem
 
 import sqlalchemy as sa
 
 hug.defaults.cli_output_format = hug.output_format.json
+
+def _create_list(conn, sql, route, **kwargs):
+    """ Enhance the given SQL term with ordering, send it to the database and
+        format the results for JSON output.
+    """
+    res = RouteList(**kwargs)
+
+    sql = sql.order_by(sa.desc(route.c.level), route.c.name)
+
+    res.set_items(conn.execute(sql))
+
+    return res
 
 
 @hug.get()
@@ -23,8 +35,6 @@ def by_area(conn: directive.connection, tables: directive.tables,
     """ Return the list of routes within the given area. `bbox` describes the
         area given, `limit` describes the maximum number of results.
     """
-    res = RouteList(bbox=bbox)
-
     r = tables.routes.data
     s = tables.segments.data
     h = tables.hierarchy.data
@@ -38,18 +48,23 @@ def by_area(conn: directive.connection, tables: directive.tables,
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
-               .order_by(sa.desc(r.c.level), r.c.name)\
                .limit(limit)
 
-    res.set_items(conn.execute(sql))
-
-    return res
+    return _create_list(conn, sql, r, bbox=bbox)
 
 @hug.get()
-def by_ids(ids: hug.types.delimited_list(',')):
+@hug.cli()
+def by_ids(conn: directive.connection, tables: directive.tables,
+           ids: ListOfIds()):
     """ Return route overview information by relation id.
     """
-    return "TODO"
+    r = tables.routes.data
+
+    sql = sa.select(RouteItem.make_selectables(r))\
+               .where(r.c.id.in_(ids))\
+               .order_by(r.c.level, r.c.name)
+
+    return _create_list(conn, sql, r, ids=ids)
 
 @hug.get()
 def search(query: hug.types.text, limit: hug.types.in_range(1, 100) = 20,

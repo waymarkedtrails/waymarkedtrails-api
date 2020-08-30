@@ -11,12 +11,12 @@ from wmt_db.common.route_types import Network
 
 class RouteItem(JsonSerializable):
 
-    @staticmethod
-    def make_selectables(table):
-        return [ table.c[col]
-                  for col in ('id', 'name', 'intnames', 'symbol', 'level', 'ref',
-                              'network', 'itinarary')
-                  if col in table.c]
+    _columns = ('id', 'name', 'intnames', 'symbol', 'level', 'ref',
+                              'network', 'itinerary')
+
+    @classmethod
+    def make_selectables(cls, table):
+        return [ table.c[col] for col in cls._columns if col in table.c]
 
     def __init__(self, row, locales=[]):
         self.content = OrderedDict()
@@ -40,8 +40,8 @@ class RouteItem(JsonSerializable):
                 if self.content['name'] != row['name']:
                     self.content['local_name'] = row['name']
                 break
-            else:
-                self._add_optional('name', row, 'name')
+        else:
+            self._add_optional('name', row, 'name')
 
         self.content['group'] = self._get_network(row)
         self._add_optional('symbol_description', row, None,

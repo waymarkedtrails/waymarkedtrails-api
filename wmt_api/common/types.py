@@ -44,3 +44,11 @@ def bbox_type(value):
     "A bounding box of the form: `x1,y2,x2,y2`."
     return Bbox(value)
 
+
+class ListOfIds(hug.types.DelimitedList):
+    """A list of route ids.."""
+
+    def __call__(self, value):
+        value = super().__call__(value)
+        return [int(number) for number in value]
+
