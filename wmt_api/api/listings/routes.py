@@ -67,16 +67,61 @@ def by_ids(conn: directive.connection, tables: directive.tables,
     return _create_list(conn, sql, r, ids=ids)
 
 @hug.get()
-def search(query: hug.types.text, limit: hug.types.in_range(1, 100) = 20,
+@hug.cli()
+def search(conn: directive.connection, tables: directive.tables,
+           query: hug.types.text, limit: hug.types.in_range(1, 100) = 20,
            page: hug.types.in_range(1, 10) = 1):
-    """ Search a route by name.
+    """ Search a route by name. `query` contains the string to search for.
+        _limit_ ist the maximum number of results to return. _page_ the batch
+        number of results to return, i.e. the requests returns results
+        `[(page - 1) * limit, page * limit[`.
     """
-    return "TODO"
+    maxresults = page * limit
+
+    res = RouteList(query=query, page=page)
+
+    r = tables.routes.data
+    base = sa.select(RouteItem.make_selectables(r))
+
+    # First try: exact match of ref
+    sql = base.where(sa.func.lower(r.c.ref) == query.lower()).limit(maxresults+1)
+    res.set_items(conn.execute(sql))
+
+    # If that did not work and the search term is a number, maybe a relation
+    # number?
+    if len(res) == 0 and len(query) > 3 and query.isdigit():
+        sql = base.where(r.c.id == int(query))
+        res.set_items(conn.execute(sql))
+        if len(res) > 0:
+            return res
+
+    # Second try: fuzzy matching of text
+    if len(res) <= maxresults:
+        sim = sa.func.similarity(r.c.name, query)
+        sql = base.column(sim.label('sim'))\
+                  .order_by(sa.desc(sim))\
+                  .limit(maxresults - len(res)) \
+                  .where(sim > (0.5 if len(res) > 0 else 0.1))
+
+        maxsim = None
+        for o in conn.execute(sql):
+            if maxsim is None:
+                maxsim = o['sim']
+            elif maxsim > o['sim'] * 3:
+                break
+            res.add_item(o)
+
+    if page > 1:
+        res.drop_leading_results((page - 1) * limit)
+
+    return res
 
 @hug.get()
-def segments(bbox: bbox_type, ids: hug.types.delimited_list(',')):
+def segments(conn: directive.connection, tables: directive.tables,
+             bbox: bbox_type, ids: hug.types.delimited_list(',')):
     """ Return the geometry of the routes `ids` that intersect with the
         boundingbox `bbox`. If the route goes outside the box, the geometry
         is cut accordingly.
     """
+
     return "TODO"
