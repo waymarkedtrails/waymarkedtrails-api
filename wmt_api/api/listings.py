@@ -1,21 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of the Waymarked Trails Map Project
+# Copyright (C) 2020 Sarah Hoffmann
+
 import hug
 from collections import OrderedDict
 
 from ..common import directive
 from ..common.types import bbox_type
+from ..output.route_list import RouteList
+from ..output.route_item import RouteItem
+
+import sqlalchemy as sa
 
 hug.defaults.cli_output_format = hug.output_format.json
 
-
-
-def create_route_list(qkey, qvalue, res):
-    out = OrderedDict()
-    out[qkey] = qvalue
-    #out['symbol_url'] = '%(MEDIA_URL)s/symbols/%(BASENAME)s/' % (
-    #                       cherrypy.request.app.config['Global'])
-    #out['results'] = [api.common.RouteDict(r) for r in res]
-
-    return out
 
 @hug.get()
 @hug.cli()
@@ -24,9 +23,27 @@ def by_area(conn: directive.connection, tables: directive.tables,
     """ Return the list of routes within the given area. `bbox` describes the
         area given, `limit` describes the maximum number of results.
     """
-    print(str(bbox))
-    print(str(limit))
-    return create_route_list('bbox', bbox, None)
+    res = RouteList(bbox=bbox)
+
+    r = tables.routes.data
+    s = tables.segments.data
+    h = tables.hierarchy.data
+
+    rels = sa.select([sa.func.unnest(s.c.rels).label('rel')], distinct=True)\
+                .where(s.c.geom.ST_Intersects(bbox.as_sql())).alias()
+
+    sql = sa.select(RouteItem.make_selectables(r))\
+               .where(r.c.top)\
+               .where(sa.or_(r.c.id.in_(sa.select([h.c.parent], distinct=True)
+                                   .where(h.c.child == rels.c.rel)),
+                             r.c.id.in_(rels)
+                     ))\
+               .order_by(sa.desc(r.c.level), r.c.name)\
+               .limit(limit)
+
+    res.set_items(conn.execute(sql))
+
+    return res
 
 @hug.get()
 def by_ids(ids: hug.types.delimited_list(',')):

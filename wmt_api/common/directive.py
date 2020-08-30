@@ -17,7 +17,7 @@ def status_table(default=False, context : ApiContext=None, **kwargs):
 
 @hug.directive()
 def tables(default=False, context : ApiContext=None, **kwargs):
-    return context.tables
+    return context.tables.tables
 
 @hug.directive()
 def shield_factory(default=False, context : ApiContext=None, **kwargs):

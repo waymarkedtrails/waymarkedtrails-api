@@ -11,8 +11,8 @@ import os
 @hug.startup()
 def init_settings(api):
     # see https://github.com/hugapi/hug/issues/623
-    if isinstance(api, hug.api.HTTPInterfaceAPI):
-        api.http.falcon.req_options.auto_parse_qs_csv = Fals
+    if hasattr(api.http, 'falcon'):
+        api.http.falcon.req_options.auto_parse_qs_csv = False
 
     ApiContext.init_globals(os.environ['WMT_CONFIG'])
 
