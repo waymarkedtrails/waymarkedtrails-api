@@ -3,10 +3,13 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
-from wmt_api import api
-from wmt_api.common.context import ApiContext
 import hug
 import os
+
+from wmt_api.api import base
+from wmt_api.common.context import ApiContext
+
+ApiContext.init_globals(os.environ['WMT_CONFIG'])
 
 @hug.startup()
 def init_settings(api):
@@ -14,14 +17,21 @@ def init_settings(api):
     if hasattr(api.http, 'falcon'):
         api.http.falcon.req_options.auto_parse_qs_csv = False
 
-    ApiContext.init_globals(os.environ['WMT_CONFIG'])
-
-
 @hug.context_factory()
 def create_context(*args, **kwargs):
     return ApiContext()
 
-hug.API(__name__).extend(api, '/api')
+hug.API(__name__).extend(base, '/api')
+
+if ApiContext.db_config.MAPTYPE == 'routes':
+    from wmt_api.api.listings import routes as listings
+    from wmt_api.api.details import routes as details
+    from wmt_api.api import tiles
+    hug.API(__name__).extend(listings, '/api/list')
+    hug.API(__name__).extend(details, '/api/details')
+    hug.API(__name__).extend(tiles, '/api/tiles')
+else:
+    raise RuntimeError(f"No API specified for map type '{ApiContext.db_config.MAPTYPE}'")
 
 application = __hug_wsgi__
 

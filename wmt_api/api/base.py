@@ -6,8 +6,7 @@
 import hug
 from typing import NamedTuple
 
-from . import listings, tiles, symbols
-from .details import base as details
+from . import symbols
 from ..common.directive import connection, status_table
 
 class StatusOutput(NamedTuple):
@@ -31,18 +30,3 @@ def status(conn: connection, status: status_table) :
 def symbols_api():
     "The symbols API returns shields for routes."
     return [symbols]
-
-@hug.extend_api('/list')
-def listing_api():
-    "The listing API returns route list overviews."
-    return [listings]
-
-@hug.extend_api('/details')
-def listing_api():
-    "The details API returns various detailed information about a single route."
-    return [details]
-
-@hug.extend_api('/tiles')
-def tiles_api():
-    "The tiles API returns vector tiles on level 12."
-    return [tiles]
