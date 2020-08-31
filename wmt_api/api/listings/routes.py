@@ -116,7 +116,7 @@ def search(conn: directive.connection, tables: directive.tables,
     return res
 
 
-@hug.get()
+@hug.get(output=format_as_geojson)
 @hug.cli(output=format_as_geojson)
 def segments(conn: directive.connection, tables: directive.tables,
              bbox: bbox_type, ids: route_id_list):

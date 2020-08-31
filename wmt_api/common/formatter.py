@@ -8,7 +8,7 @@ from io import StringIO
 
 @hug.format.content_type('application/json')
 def format_as_geojson(data, request=None, response=None):
-    """ Converts the data in to geoJSON. The data is expected to be an array
+    """ Convert the data in to geoJSON. The data is expected to be an array
         of tuples (id, geometry). The id will be added as a property id to
         the feature. The geometry must already be GeoJSON and is added verbatim.
     """
@@ -26,3 +26,9 @@ def format_as_geojson(data, request=None, response=None):
     outstr.write("]}")
 
     return outstr.getvalue().encode('utf-8')
+
+def format_as_redirect(data, request=None, response=None):
+    if data is None:
+        raise hug.HTTPNotFound()
+
+    raise hug.HTTPTemporaryRedirect(data)

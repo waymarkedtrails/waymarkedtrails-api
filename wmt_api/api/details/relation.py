@@ -7,7 +7,9 @@ import hug
 import sqlalchemy as sa
 
 from ...common import directive
+from ...common.formatter import format_as_redirect
 from ...output.route_item import DetailedRouteItem, RouteItem
+from ...output.wikilink import get_wikipedia_link
 
 @hug.get('/')
 @hug.cli()
@@ -42,10 +44,16 @@ def info(conn: directive.connection, tables: directive.tables,
 
     return res
 
-@hug.get()
-def wikilink(oid):
+@hug.get(output=format_as_redirect)
+@hug.cli(output=hug.output_format.text)
+def wikilink(conn: directive.connection, osmdata: directive.osmdata, oid):
     "Return a redirct into the Wikipedia page with further information."
-    raise hug.HTTPNotFound()
+
+    r = osmdata.relation.data
+
+    return get_wikipedia_link(
+             conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
+             [])
 
 @hug.get('/geometry/{geomtype}')
 def geojson(oid, geomtype : hug.types.one_of(('geojson', 'kml', 'gpx'))):
