@@ -52,3 +52,4 @@ class ListOfIds(hug.types.DelimitedList):
         value = super().__call__(value)
         return [int(number) for number in value]
 
+route_id_list = ListOfIds()

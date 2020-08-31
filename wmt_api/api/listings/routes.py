@@ -7,7 +7,8 @@ import hug
 from collections import OrderedDict
 
 from ...common import directive
-from ...common.types import bbox_type, ListOfIds
+from ...common.types import bbox_type, route_id_list
+from ...common.formatter import format_as_geojson
 from ...output.route_list import RouteList
 from ...output.route_item import RouteItem
 
@@ -55,7 +56,7 @@ def by_area(conn: directive.connection, tables: directive.tables,
 @hug.get()
 @hug.cli()
 def by_ids(conn: directive.connection, tables: directive.tables,
-           ids: ListOfIds()):
+           ids: route_id_list):
     """ Return route overview information by relation id.
     """
     r = tables.routes.data
@@ -116,12 +117,20 @@ def search(conn: directive.connection, tables: directive.tables,
 
     return res
 
+
 @hug.get()
+@hug.cli(output=format_as_geojson)
 def segments(conn: directive.connection, tables: directive.tables,
-             bbox: bbox_type, ids: hug.types.delimited_list(',')):
+             bbox: bbox_type, ids: route_id_list):
     """ Return the geometry of the routes `ids` that intersect with the
         boundingbox `bbox`. If the route goes outside the box, the geometry
         is cut accordingly.
     """
 
-    return "TODO"
+    r = tables.routes.data
+
+    sql = sa.select(["r" + r.c.id.cast(sa.Text),
+                     r.c.geom.ST_Intersection(bbox.as_sql()).ST_AsGeoJSON()])\
+              .where(r.c.id.in_(ids))
+
+    return conn.execute(sql)
