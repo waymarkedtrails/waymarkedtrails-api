@@ -4,9 +4,13 @@
 # Copyright (C) 2020 Sarah Hoffmann
 
 from collections import OrderedDict
+from sqlalchemy import func
+from geoalchemy2.shape import to_shape
+
+from osgende.common.tags import TagStore
+from wmt_db.common.route_types import Network
 
 from .json_convert import JsonSerializable
-from wmt_db.common.route_types import Network
 
 
 class RouteItem(JsonSerializable):
@@ -21,9 +25,6 @@ class RouteItem(JsonSerializable):
     def __init__(self, row, locales=[]):
         self.content = OrderedDict()
         self._set_row_data(row, locales)
-
-    def set_items(self, res):
-        self.content['results'] = [RouteItem(r) for r in res]
 
     def to_json_serializable(self):
         return self.content
@@ -62,3 +63,41 @@ class RouteItem(JsonSerializable):
 
         return Network.from_int(row['level']).name
 
+
+class DetailedRouteItem(RouteItem):
+
+    @classmethod
+    def make_selectables(cls, table, rel_table):
+        fields = [ table.c[col] for col in cls._columns if col in table.c]
+        if 'level' not in table.c and 'piste' in table.c:
+            fields.append(r.c.piste.label('level'))
+
+        fields.append(func.ST_Length2dSpheroid(func.ST_Transform(table.c.geom, 4326),
+                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]').label("length"))
+        fields.append(table.c.geom.ST_Envelope().label('bbox'))
+        fields.append(rel_table.c.tags)
+
+        return fields
+
+    def __init__(self, row, locales=[]):
+        super().__init__(row, locales)
+        self._add_details(row, locales)
+
+    def _add_details(self, row, locales):
+        loctags = TagStore.make_localized(row['tags'], locales)
+
+        self.content['mapped_length'] = int(row['length'])
+        self._add_optional('official_length', row, None,
+                           loctags.get_length('distance', 'length', unit='m'))
+
+        for tag in ('operator', 'note', 'description'):
+            self._add_optional(tag, row, None, loctags.get(tag))
+
+        self._add_optional('url', row, None, loctags.get_url())
+        self._add_optional('wikipedia', row, None, loctags.get_wikipedia_tags())
+
+        self.content['bbox'] = to_shape(row['bbox']).bounds
+        self.content['tags'] = row['tags']
+
+    def add_extra_info(self, key, value):
+        self.content[key] = value

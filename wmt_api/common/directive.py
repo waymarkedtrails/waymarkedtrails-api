@@ -20,6 +20,10 @@ def tables(default=False, context : ApiContext=None, **kwargs):
     return context.tables.tables
 
 @hug.directive()
+def osmdata(default=False, context : ApiContext=None, **kwargs):
+    return context.tables.osmdata
+
+@hug.directive()
 def shield_factory(default=False, context : ApiContext=None, **kwargs):
     return context.shield_config
 

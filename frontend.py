@@ -6,6 +6,8 @@
 import hug
 import os
 
+hug.defaults.cli_output_format = hug.output_format.json
+
 from wmt_api.api import base
 from wmt_api.common.context import ApiContext
 

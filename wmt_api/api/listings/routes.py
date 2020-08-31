@@ -14,8 +14,6 @@ from ...output.route_item import RouteItem
 
 import sqlalchemy as sa
 
-hug.defaults.cli_output_format = hug.output_format.json
-
 def _create_list(conn, sql, route, **kwargs):
     """ Enhance the given SQL term with ordering, send it to the database and
         format the results for JSON output.
