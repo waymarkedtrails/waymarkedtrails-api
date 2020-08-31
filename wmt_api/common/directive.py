@@ -7,6 +7,42 @@ import hug
 
 from .context import ApiContext
 
+def parse_language_header(header):
+    if not header:
+        return []
+
+    langs = []
+    for lang in header.split(','):
+        parts = lang.split(';q=')
+        qual = float(parts[1]) if len(parts) > 1 else 1.0
+        if qual <= 0.0:
+            continue
+        parts = parts[0].split('-')
+        if len(parts) > 1:
+            qual /= 2
+        langs.append((qual, parts[0]))
+
+    sorted(langs)
+    seen = {}
+    return [seen.setdefault(x, x) for _, x in langs if x not in seen]
+
+
+
+@hug.directive()
+def locale(default=False, interface=None, request=None, argparse=None, **kwargs):
+    if isinstance(interface, hug.interface.CLI):
+        _, unknown = argparse.parse_known_args()
+        try:
+            pos = unknown.index('--locale')
+            if pos + 1 < len(unknown):
+                return unknown[pos + 1].split(',')
+        except ValueError:
+            pass
+    elif isinstance(interface, hug.interface.HTTP):
+        return parse_language_header(request.get_header('ACCEPT-LANGUAGE'))
+
+    return []
+
 @hug.directive()
 def connection(default=False, context : ApiContext=None, **kwargs):
     return context.connection

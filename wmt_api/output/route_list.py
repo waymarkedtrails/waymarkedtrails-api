@@ -14,11 +14,11 @@ class RouteList(JsonSerializable):
         self.content = OrderedDict(**kwargs)
         self.content['results'] = []
 
-    def set_items(self, res):
-        self.content['results'] = [RouteItem(r) for r in res]
+    def set_items(self, res, locale):
+        self.content['results'] = [RouteItem(r, locale) for r in res]
 
-    def add_item(self, obj):
-        self.content['results'].append(RouteItem(obj))
+    def add_item(self, obj, locale):
+        self.content['results'].append(RouteItem(obj, locale))
 
     def drop_leading_results(self, num):
         del self.content['results'][0:num]

@@ -14,18 +14,19 @@ from ...output.wikilink import get_wikipedia_link
 @hug.get('/')
 @hug.cli()
 def info(conn: directive.connection, tables: directive.tables,
-         osmdata : directive.osmdata, oid : hug.types.number):
+         osmdata : directive.osmdata, locale: directive.locale,
+         oid : hug.types.number):
     "Return general information about the route."
 
     r = tables.routes.data
     o = osmdata.relation.data
     h = tables.hierarchy.data
 
-    fields = DetailedRouteItem.make_selectables(r, o)
+    sql = sa.select(DetailedRouteItem.make_selectables(r, o))\
+                            .where(r.c.id==oid)\
+                            .where(o.c.id==oid)
 
-    res = DetailedRouteItem(conn.execute(sa.select(fields)
-                            .where(r.c.id==oid)
-                            .where(o.c.id==oid)).first())
+    res = DetailedRouteItem(conn.execute(sql).first(), locale)
 
     # add hierarchy where applicable
     for rtype in ('subroutes', 'superroutes'):
@@ -46,14 +47,15 @@ def info(conn: directive.connection, tables: directive.tables,
 
 @hug.get(output=format_as_redirect)
 @hug.cli(output=hug.output_format.text)
-def wikilink(conn: directive.connection, osmdata: directive.osmdata, oid):
+def wikilink(conn: directive.connection, osmdata: directive.osmdata,
+             locale: directive.locale, oid):
     "Return a redirct into the Wikipedia page with further information."
 
     r = osmdata.relation.data
 
     return get_wikipedia_link(
              conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
-             [])
+             locale)
 
 @hug.get('/geometry/{geomtype}')
 def geojson(oid, geomtype : hug.types.one_of(('geojson', 'kml', 'gpx'))):

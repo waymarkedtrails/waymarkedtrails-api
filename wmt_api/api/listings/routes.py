@@ -30,10 +30,13 @@ def _create_list(conn, sql, route, **kwargs):
 @hug.get()
 @hug.cli()
 def by_area(conn: directive.connection, tables: directive.tables,
+            locale: directive.locale,
             bbox: bbox_type, limit: hug.types.in_range(1, 100) = 20):
     """ Return the list of routes within the given area. `bbox` describes the
         area given, `limit` describes the maximum number of results.
     """
+    res = RouteList(bbox=bbox)
+
     r = tables.routes.data
     s = tables.segments.data
     h = tables.hierarchy.data
@@ -47,23 +50,30 @@ def by_area(conn: directive.connection, tables: directive.tables,
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
-               .limit(limit)
+               .limit(limit)\
+               .order_by(sa.desc(r.c.level), r.c.name)
 
-    return _create_list(conn, sql, r, bbox=bbox)
+    res.set_items(conn.execute(sql), locale)
+
+    return res
 
 @hug.get()
 @hug.cli()
 def by_ids(conn: directive.connection, tables: directive.tables,
-           ids: route_id_list):
+           locale: directive.locale, ids: route_id_list):
     """ Return route overview information by relation id.
     """
+    res = RouteList(ids=ids)
+
     r = tables.routes.data
 
     sql = sa.select(RouteItem.make_selectables(r))\
                .where(r.c.id.in_(ids))\
-               .order_by(r.c.level, r.c.name)
+               .order_by(sa.desc(r.c.level), r.c.name)
 
-    return _create_list(conn, sql, r, ids=ids)
+    res.set_items(conn.execute(sql), locale)
+
+    return res
 
 @hug.get()
 @hug.cli()
@@ -84,13 +94,13 @@ def search(conn: directive.connection, tables: directive.tables,
 
     # First try: exact match of ref
     sql = base.where(sa.func.lower(r.c.ref) == query.lower()).limit(maxresults+1)
-    res.set_items(conn.execute(sql))
+    res.set_items(conn.execute(sql), locale)
 
     # If that did not work and the search term is a number, maybe a relation
     # number?
     if len(res) == 0 and len(query) > 3 and query.isdigit():
         sql = base.where(r.c.id == int(query))
-        res.set_items(conn.execute(sql))
+        res.set_items(conn.execute(sql), locale)
         if len(res) > 0:
             return res
 
@@ -108,7 +118,7 @@ def search(conn: directive.connection, tables: directive.tables,
                 maxsim = o['sim']
             elif maxsim > o['sim'] * 3:
                 break
-            res.add_item(o)
+            res.add_item(o, locale)
 
     if page > 1:
         res.drop_leading_results((page - 1) * limit)
