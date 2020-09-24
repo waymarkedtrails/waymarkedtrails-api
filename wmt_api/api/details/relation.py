@@ -7,9 +7,10 @@ import hug
 import sqlalchemy as sa
 
 from ...common import directive
-from ...common.formatter import format_as_redirect
+from ...common.formatter import format_as_redirect, format_object
 from ...output.route_item import DetailedRouteItem, RouteItem
 from ...output.wikilink import get_wikipedia_link
+from ...output.geometry import RouteGeometry
 
 @hug.get('/')
 @hug.cli()
@@ -57,10 +58,33 @@ def wikilink(conn: directive.connection, osmdata: directive.osmdata,
              conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
              locale)
 
-@hug.get('/geometry/{geomtype}')
-def geojson(oid, geomtype : hug.types.one_of(('geojson', 'kml', 'gpx'))):
-    "Return the geometry of the function as geojson."
-    return geomtype
+@hug.get('/geometry/{geomtype}', output=format_object)
+@hug.cli(output=format_object)
+def geometry(conn: directive.connection, tables: directive.tables,
+             locale: directive.locale,
+             oid, geomtype : hug.types.one_of(('geojson', 'kml', 'gpx')),
+             simplify : int = None):
+    """ Return the geometry of the function. Supported formats are geojson,
+        kml and gpx.
+    """
+    r = tables.routes.data
+
+    geom = r.c.geom
+    if simplify is not None:
+        geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
+    if geomtype == 'geojson' :
+        geom = geom.ST_AsGeoJSON()
+    else:
+        geom = geom.ST_Transform(4326)
+
+    rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
+
+    obj = conn.execute(sa.select(rows).where(r.c.id==oid)).first()
+
+    if obj is None:
+        return hug.HTTPNotFound()
+
+    return RouteGeometry(obj, locales=locale, fmt=geomtype)
 
 
 @hug.get()

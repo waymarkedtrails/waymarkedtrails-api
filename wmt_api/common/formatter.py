@@ -33,3 +33,12 @@ def format_as_redirect(data, request=None, response=None):
         raise hug.HTTPNotFound()
 
     raise hug.HTTPTemporaryRedirect(data)
+
+@hug.output_format.content_type("file/dynamic")
+def format_object(data, request=None, response=None):
+    output = data.to_string(request=request, response=response)
+
+    if isinstance(output, str):
+        output.encode('utf-8')
+
+    return output
