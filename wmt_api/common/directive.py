@@ -66,3 +66,7 @@ def shield_factory(default=False, context : ApiContext=None, **kwargs):
 @hug.directive()
 def db_config(default=False, context : ApiContext=None, **kwargs):
     return context.db_config
+
+@hug.directive()
+def api_config(default=False, context : ApiContext=None, **kwargs):
+    return context.api_config
