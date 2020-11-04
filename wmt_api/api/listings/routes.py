@@ -78,6 +78,7 @@ def by_ids(conn: directive.connection, tables: directive.tables,
 @hug.get()
 @hug.cli()
 def search(conn: directive.connection, tables: directive.tables,
+           locale: directive.locale,
            query: hug.types.text, limit: hug.types.in_range(1, 100) = 20,
            page: hug.types.in_range(1, 10) = 1):
     """ Search a route by name. `query` contains the string to search for.

@@ -50,7 +50,7 @@ def info(conn: directive.connection, tables: directive.tables,
 
     return res
 
-@hug.get(output=format_as_redirect)
+@hug.get('/wikilink', output=format_as_redirect)
 @hug.cli(output=hug.output_format.text)
 def wikilink(conn: directive.connection, osmdata: directive.osmdata,
              locale: directive.locale, oid: hug.types.number):

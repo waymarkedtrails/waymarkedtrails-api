@@ -37,7 +37,7 @@ class RouteGeometry(object):
                     "properties": {{ "name": "EPSG:3857"}}
                    }},
             "features": [{{ "type": "Feature", "geometry" : {self.obj.geom} }}]
-         }}"""
+         }}""".encode('utf8')
 
 
     def to_string_gpx(self, request=None, response=None):

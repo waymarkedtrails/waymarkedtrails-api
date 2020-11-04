@@ -123,7 +123,10 @@ class RouteElevation(object):
     """ Gets and format the elevation profile for a single route.
     """
     def __init__(self, oid, dem_file, bounds):
-        self.elevation = OrderedDict(id=oid, ascent=0, descent=0, segments=[])
+        self.elevation = OrderedDict(id=oid, ascent=0, descent=0,
+                                     end_position=0,
+                                     min_elevation=None, max_elevation=None,
+                                     segments=[])
         dem = Dem(dem_file)
         self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
                                                     dem.raster_array(bounds)
@@ -159,6 +162,13 @@ class RouteElevation(object):
         elepoints = []
         for x, y, ele, p in zip(xcoord, ycoord, elev, pos):
             elepoints.append(OrderedDict(x=x, y=y, ele=float(ele), pos=p))
+            if ele < (self.elevation['min_elevation'] or 10000):
+                self.elevation['min_elevation'] = ele
+            if ele > (self.elevation['max_elevation'] or -10000):
+                self.elevation['max_elevation'] = ele
+
+        if pos[-1] > self.elevation['end_position']:
+            self.elevation['end_position'] = pos[-1]
 
         self.elevation['segments'].append({'elevation' : elepoints})
 

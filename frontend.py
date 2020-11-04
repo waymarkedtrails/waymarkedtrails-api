@@ -23,6 +23,7 @@ def init_settings(api):
 def create_context(*args, **kwargs):
     return ApiContext()
 
+hug.API(__name__).http.add_middleware(hug.middleware.CORSMiddleware(hug.API(__name__)))
 hug.API(__name__).extend(base, '/api')
 
 if ApiContext.db_config.MAPTYPE == 'routes':
