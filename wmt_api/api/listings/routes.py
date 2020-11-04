@@ -138,8 +138,8 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sql = sa.select(["r" + r.c.id.cast(sa.Text),
-                     r.c.geom.ST_Intersection(bbox.as_sql()).ST_AsGeoJSON()])\
+    sql = sa.select([("r" + r.c.id.cast(sa.Text)).label('id'),
+                     r.c.geom.ST_Intersection(bbox.as_sql()).ST_AsGeoJSON().label('geometry')])\
               .where(r.c.id.in_(ids))
 
     return conn.execute(sql)

@@ -4,9 +4,10 @@
 # Copyright (C) 2020 Sarah Hoffmann
 
 import hug
+import json
 from io import StringIO
 
-@hug.format.content_type('application/json')
+@hug.output_format.on_valid('application/json')
 def format_as_geojson(data, request=None, response=None):
     """ Convert the data in to geoJSON. The data is expected to be an array
         of tuples (id, geometry). The id will be added as a property id to
@@ -20,7 +21,14 @@ def format_as_geojson(data, request=None, response=None):
 
     sep = ''
     for d in data:
-        outstr.write(f'{sep}{{"type": "Feature", "id" : "{d[0]}", "geometry" : {d[1]}}}')
+        outstr.write(f'{sep}{{"type": "Feature", "geometry" : {d.geometry}')
+        if 'id' in d.keys():
+            outstr.write(f', "id" : "{d.id}"')
+        if len(d.keys()) > 2:
+            outstr.write(', "properties" : ')
+            json.dump({ k: d[k] for k in d.keys() if k not in ('id', 'geometry')},
+                      outstr)
+        outstr.write('}')
         sep = ','
 
     outstr.write("]}")

@@ -29,7 +29,7 @@ hug.API(__name__).extend(base, '/api')
 if ApiContext.db_config.MAPTYPE == 'routes':
     from wmt_api.api.listings import routes as listings
     from wmt_api.api.details import routes as details
-    from wmt_api.api import tiles
+    from wmt_api.api.tiles import routes as tiles
     hug.API(__name__).extend(listings, '/api/list')
     hug.API(__name__).extend(details, '/api/details')
     hug.API(__name__).extend(tiles, '/api/tiles')
