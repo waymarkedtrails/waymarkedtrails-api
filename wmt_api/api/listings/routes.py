@@ -130,7 +130,7 @@ def search(conn: directive.connection, tables: directive.tables,
 @hug.get(output=format_as_geojson)
 @hug.cli(output=format_as_geojson)
 def segments(conn: directive.connection, tables: directive.tables,
-             bbox: bbox_type, ids: route_id_list):
+             bbox: bbox_type, relations: route_id_list):
     """ Return the geometry of the routes `ids` that intersect with the
         boundingbox `bbox`. If the route goes outside the box, the geometry
         is cut accordingly.
@@ -140,6 +140,6 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     sql = sa.select([("r" + r.c.id.cast(sa.Text)).label('id'),
                      r.c.geom.ST_Intersection(bbox.as_sql()).ST_AsGeoJSON().label('geometry')])\
-              .where(r.c.id.in_(ids))
+              .where(r.c.id.in_(relations))
 
     return conn.execute(sql)

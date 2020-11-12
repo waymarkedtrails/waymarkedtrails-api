@@ -6,6 +6,7 @@
 import hug
 import sqlalchemy as sa
 from geoalchemy2.shape import to_shape
+from geoalchemy2.types import Geometry
 from shapely.geometry import Point, LineString
 from array import array
 
@@ -15,6 +16,16 @@ from ...output.route_item import DetailedRouteItem, RouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.geometry import RouteGeometry
 from ...output.elevation import RouteElevation
+
+class ST_LineInterpolatePoint(sa.sql.functions.GenericFunction):
+    type = Geometry
+
+class ST_Collect(sa.sql.functions.GenericFunction):
+    type = Geometry
+
+class ST_LineMerge(sa.sql.functions.GenericFunction):
+    type = Geometry
+
 
 @hug.get('/')
 @hug.cli()
@@ -111,6 +122,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
     res = conn.scalar(sel)
 
     if res is not None:
+        print(res)
         geom = to_shape(res)
         ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
 
@@ -118,7 +130,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
         geomlen = LineString(geom).length
         pos = [geomlen*i/float(segments) for i in range(segments)]
 
-        ele.add_segment(geom.bounds, xcoords, ycoord, pos)
+        ele.add_segment(xcoord, ycoord, pos)
 
         return ele.elevation
 
