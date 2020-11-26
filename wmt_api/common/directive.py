@@ -22,7 +22,7 @@ def parse_language_header(header):
             qual /= 2
         langs.append((qual, parts[0]))
 
-    sorted(langs)
+    langs.sort()
     seen = {}
     return [seen.setdefault(x, x) for _, x in langs if x not in seen]
 

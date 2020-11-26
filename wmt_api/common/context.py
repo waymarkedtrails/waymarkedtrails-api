@@ -44,11 +44,6 @@ class ApiContext(object):
         cls.shield_factory = ShieldFactory(cls.db_config.ROUTES.symbols,
                                            cls.db_config.SYMBOLS)
 
-        cls.engine = create_engine(URL('postgresql',
-                                        database=cls.db_config.DB_NAME,
-                                        username=cls.db_config.DB_USER,
-                                        password=cls.db_config.DB_PASSWORD
-                                        ), echo=False)
         cls.thread_data = threading.local()
 
         try:
@@ -61,7 +56,16 @@ class ApiContext(object):
         class Options:
             no_engine = True
 
-        cls.tables = mapdb_pkg.DB(cls.db_config, Options())
+        cls.tables = mapdb_pkg.create_mapdb(cls.db_config, Options())
+        cls.create_engine()
+
+    @classmethod
+    def create_engine(cls):
+        cls.engine = create_engine(URL('postgresql',
+                                        database=cls.db_config.DB_NAME,
+                                        username=cls.db_config.DB_USER,
+                                        password=cls.db_config.DB_PASSWORD
+                                        ), echo=False)
 
     @property
     def connection(self):
