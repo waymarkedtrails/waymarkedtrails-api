@@ -50,3 +50,7 @@ def status_table(db):
         TestContext.tables.status.create(conn)
 
     return TestContext.tables.status
+
+@pytest.fixture
+def db_config(db):
+    return TestContext.db_config

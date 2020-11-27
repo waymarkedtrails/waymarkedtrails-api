@@ -61,7 +61,7 @@ def osmdata(default=False, context : ApiContext=None, **kwargs):
 
 @hug.directive()
 def shield_factory(default=False, context : ApiContext=None, **kwargs):
-    return context.shield_config
+    return context.shield_factory
 
 @hug.directive()
 def db_config(default=False, context : ApiContext=None, **kwargs):

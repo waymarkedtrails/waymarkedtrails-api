@@ -5,7 +5,6 @@
 
 import hug
 import falcon
-import json
 from datetime import datetime, timezone
 
 from wmt_api.api import base
