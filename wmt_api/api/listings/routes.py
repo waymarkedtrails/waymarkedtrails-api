@@ -14,18 +14,6 @@ from ...output.route_item import RouteItem
 
 import sqlalchemy as sa
 
-def _create_list(conn, sql, route, **kwargs):
-    """ Enhance the given SQL term with ordering, send it to the database and
-        format the results for JSON output.
-    """
-    res = RouteList(**kwargs)
-
-    sql = sql.order_by(sa.desc(route.c.level), route.c.name)
-
-    res.set_items(conn.execute(sql))
-
-    return res
-
 
 @hug.get()
 @hug.cli()
@@ -139,7 +127,10 @@ def segments(conn: directive.connection, tables: directive.tables,
     r = tables.routes.data
 
     sql = sa.select([("r" + r.c.id.cast(sa.Text)).label('id'),
-                     r.c.geom.ST_Intersection(bbox.as_sql()).ST_AsGeoJSON().label('geometry')])\
-              .where(r.c.id.in_(relations))
+                     r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
+              .where(r.c.id.in_(relations)).alias()
+
+    sql = sa.select([sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+            .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
     return conn.execute(sql)

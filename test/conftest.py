@@ -3,6 +3,7 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
+import itertools
 import os
 
 import pytest
@@ -36,6 +37,7 @@ def db():
     with TestContext.engine.begin() as conn:
         conn.execute("CREATE EXTENSION postgis")
         conn.execute(f"CREATE SCHEMA {TestContext.tables.site_config.DB_SCHEMA}")
+        conn.execute('CREATE EXTENSION pg_trgm')
 
     yield TestContext.engine
 
@@ -67,6 +69,39 @@ def hierarchy_table(conn):
 def route_table(conn):
     TestContext.tables.tables.routes.data.create(conn)
     return TestContext.tables.tables.routes
+
+@pytest.fixture
+def route_factory(conn, relations_table, route_table):
+    def factory(oid, geom, **kwargs):
+        conn.execute(relations_table.data.insert()
+            .values(dict(id=oid, tags=kwargs.get('tags', {}),
+                         members=kwargs.get('members', [dict(id=1, type='W', role='')]))))
+
+        values = dict(intnames={}, country='de', network='', level=0, top=True)
+        values.update(kwargs)
+        values['id'] = oid
+        values['geom'] = f'SRID=3857;{geom}'
+        values.pop('members', None)
+        values.pop('tags', None)
+        conn.execute(route_table.data.insert().values(values))
+
+    return factory
+
+@pytest.fixture
+def segments_table(conn):
+    TestContext.tables.tables.segments.data.create(conn)
+    return TestContext.tables.tables.segments
+
+@pytest.fixture
+def segment_factory(conn, segments_table):
+    segment_id = itertools.count(1)
+    def factory(geom, *rels, nodes={}, ways={}):
+        conn.execute(segments_table.data.insert()
+                      .values(dict(id=next(segment_id), nodes=nodes,
+                                   ways=ways, rels=rels,
+                                   geom=f'SRID=3857;LINESTRING({geom})')))
+
+    return factory
 
 @pytest.fixture
 def db_config(db):
