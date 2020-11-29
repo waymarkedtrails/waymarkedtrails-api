@@ -35,7 +35,7 @@ def format_as_geojson(data, request=None, response=None):
 
     return outstr.getvalue().encode('utf-8')
 
-
+@hug.output_format.content_type("application/json")
 def format_as_redirect(data, request=None, response=None):
     if data is None:
         raise hug.HTTPNotFound()

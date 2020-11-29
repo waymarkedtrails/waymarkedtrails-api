@@ -42,7 +42,12 @@ def info(conn: directive.connection, tables: directive.tables,
                             .where(r.c.id==oid)\
                             .where(o.c.id==oid)
 
-    res = DetailedRouteItem(conn.execute(sql).first(), locale)
+    row = conn.execute(sql).first()
+
+    if row is None:
+        raise hug.HTTPNotFound()
+
+    res = DetailedRouteItem(row, locale)
 
     # add hierarchy where applicable
     for rtype in ('subroutes', 'superroutes'):

@@ -12,6 +12,7 @@ def parse_language_header(header):
         return []
 
     langs = []
+    pos = 0.0
     for lang in header.split(','):
         parts = lang.split(';q=')
         qual = float(parts[1]) if len(parts) > 1 else 1.0
@@ -20,9 +21,10 @@ def parse_language_header(header):
         parts = parts[0].split('-')
         if len(parts) > 1:
             qual /= 2
-        langs.append((qual, parts[0]))
+        langs.append((qual - pos, parts[0]))
+        pos += 0.000001
 
-    langs.sort()
+    langs.sort(reverse=True)
     seen = {}
     return [seen.setdefault(x, x) for _, x in langs if x not in seen]
 

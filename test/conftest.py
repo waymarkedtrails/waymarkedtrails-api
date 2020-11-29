@@ -18,7 +18,6 @@ class TestContext(ApiContext):
 
     @classmethod
     def create_engine(cls):
-        print("create_engine CALLED")
         cls.engine = create_engine(URL('postgresql', database=TEST_DATABASE),
                                    echo=False)
 
@@ -36,6 +35,7 @@ def db():
 
     with TestContext.engine.begin() as conn:
         conn.execute("CREATE EXTENSION postgis")
+        conn.execute(f"CREATE SCHEMA {TestContext.tables.site_config.DB_SCHEMA}")
 
     yield TestContext.engine
 
@@ -43,13 +43,30 @@ def db():
         TestContext.thread_data.conn.close()
     TestContext.engine.dispose()
 
+@pytest.fixture
+def conn(db):
+    with db.connect().execution_options(autocommit=True) as conn:
+        yield conn
 
 @pytest.fixture
-def status_table(db):
-    with db.begin() as conn:
-        TestContext.tables.status.create(conn)
-
+def status_table(conn):
+    TestContext.tables.status.create(conn)
     return TestContext.tables.status
+
+@pytest.fixture
+def relations_table(conn):
+    TestContext.tables.osmdata.relation.create(conn)
+    return TestContext.tables.osmdata.relation
+
+@pytest.fixture
+def hierarchy_table(conn):
+    TestContext.tables.tables.hierarchy.create(conn)
+    return TestContext.tables.tables.hierarchy
+
+@pytest.fixture
+def route_table(conn):
+    TestContext.tables.tables.routes.data.create(conn)
+    return TestContext.tables.tables.routes
 
 @pytest.fixture
 def db_config(db):
