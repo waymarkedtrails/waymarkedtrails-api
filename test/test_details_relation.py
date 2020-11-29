@@ -11,6 +11,7 @@ import falcon
 import shapely
 
 import wmt_api.api.details.relation as api
+import wmt_api.api.details.routes as routes_api
 
 @pytest.fixture
 def simple_route(conn, relations_table, route_table, hierarchy_table):
@@ -44,7 +45,16 @@ def test_info(simple_route, language_names):
     assert data['name'] == language_names[1]
 
 
-def test_info_unknown(simple_route):
+def test_info_via_routes(simple_route, language_names):
+    response = hug.test.get(routes_api, f'/relation/{simple_route}',
+                            headers={'Accept-Language': language_names[0]})
+    assert response.status == falcon.HTTP_OK
+    data = response.data
+    assert data['id'] == simple_route
+    assert data['name'] == language_names[1]
+
+
+def test_info_unknown(relations_table, route_table, hierarchy_table):
     assert hug.test.get(api, '/', oid=11).status == falcon.HTTP_NOT_FOUND
 
 
@@ -97,6 +107,11 @@ def test_geometry_geojson(route_geoms):
 
     geom = shapely.geometry.shape(response.data['features'][0]['geometry'])
 
+
+def test_geometry_geojson_unknown(relations_table, route_table, hierarchy_table):
+    assert hug.test.get(api, '/geometry/geojson', oid=11).status == falcon.HTTP_NOT_FOUND
+
+
 def test_geometry_kml(route_geoms):
     response = hug.test.get(api, '/geometry/kml', oid=route_geoms)
 
@@ -118,6 +133,10 @@ def test_geometry_kml_locale_name(simple_route, language_names):
     assert ele.findtext('{http://www.opengis.net/kml/2.2}name') == language_names[1]
 
 
+def test_geometry_kml_unknown(relations_table, route_table, hierarchy_table):
+    assert hug.test.get(api, '/geometry/kml', oid=11).status == falcon.HTTP_NOT_FOUND
+
+
 def test_geometry_gpx(route_geoms):
     response = hug.test.get(api, '/geometry/gpx', oid=route_geoms)
 
@@ -137,3 +156,7 @@ def test_geometry_gpx_locale_name(simple_route, language_names):
     ele = root.find('{http://www.topografix.com/GPX/1/1}metadata')
     assert ele
     assert ele.findtext('{http://www.topografix.com/GPX/1/1}name') == language_names[1]
+
+
+def test_geometry_gpx_unknown(relations_table, route_table, hierarchy_table):
+    assert hug.test.get(api, '/geometry/gpx', oid=11).status == falcon.HTTP_NOT_FOUND

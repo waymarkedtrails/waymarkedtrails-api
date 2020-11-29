@@ -103,7 +103,7 @@ def geometry(conn: directive.connection, tables: directive.tables,
     obj = conn.execute(sa.select(rows).where(r.c.id==oid)).first()
 
     if obj is None:
-        return hug.HTTPNotFound()
+        raise hug.HTTPNotFound()
 
     return RouteGeometry(obj, locales=locale, fmt=geomtype)
 
@@ -148,36 +148,36 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     res = conn.execute(sel).first()
 
-    if res is not None and res[0] is not None:
-        geom = to_shape(res[0])
-        ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
+    if res is None or res[0] is None:
+        raise hug.HTTPNotFound()
 
-        if res[2] > 10000:
-            geom = geom.simplify(res[2]/500, preserve_topology=False)
-        elif res[2] > 4000:
-            geom = geom.simplify(res[2]/1000, preserve_topology=False)
+    geom = to_shape(res[0])
+    ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
 
-        prev = None
-        for seg in geom:
-            p = seg.coords[0]
-            xcoords = array('d', [p[0]])
-            ycoords = array('d', [p[1]])
-            pos = array('d')
-            if prev is not None:
-                pos.append(prev[2][-1] + \
-                        Point(prev[0][-1], prev[1][-1]).distance(Point(*p)))
-            else:
-                pos.append(0.0)
-            for p in seg.coords[1:]:
-                pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)))
-                xcoords.append(p[0])
-                ycoords.append(p[1])
+    if res[2] > 10000:
+        geom = geom.simplify(res[2]/500, preserve_topology=False)
+    elif res[2] > 4000:
+        geom = geom.simplify(res[2]/1000, preserve_topology=False)
 
-            ele.add_segment(xcoords, ycoords, pos)
-            prev = (xcoords, ycoords, pos)
+    prev = None
+    for seg in geom:
+        p = seg.coords[0]
+        xcoords = array('d', [p[0]])
+        ycoords = array('d', [p[1]])
+        pos = array('d')
+        if prev is not None:
+            pos.append(prev[2][-1] + \
+                    Point(prev[0][-1], prev[1][-1]).distance(Point(*p)))
+        else:
+            pos.append(0.0)
+        for p in seg.coords[1:]:
+            pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)))
+            xcoords.append(p[0])
+            ycoords.append(p[1])
 
-        ele.elevation['length'] = float(res[1])
+        ele.add_segment(xcoords, ycoords, pos)
+        prev = (xcoords, ycoords, pos)
 
-        return ele.elevation
+    ele.elevation['length'] = float(res[1])
 
-    return hug.HTTPNotFound()
+    return ele.elevation
