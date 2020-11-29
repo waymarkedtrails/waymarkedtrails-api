@@ -19,33 +19,27 @@ def route_geometry(request):
     return request.param
 
 @pytest.fixture
-def simple_route(conn, relations_table, route_table, hierarchy_table, route_geometry):
-    oid = 3972279
-
-    conn.execute(relations_table.data.insert()\
-        .values(dict(id=oid,
-                     tags={"ref": "147", "name": "Guschg - Steg",
-                           "type": "route", "route": "hiking",
-                           "source": "llv.li", "network": "lwn",
-                           "distance": "8.53 km",
-                           "osmc:symbol": "red:red:white_bar:147:black"},
-                     members=[{"id": 119489294, "role": "", "type": "W"},
-                              {"id": 35939583, "role": "", "type": "W"},
-                              {"id": 298793003, "role": "", "type": "W"},
-                              {"id": 298793015, "role": "", "type": "W"},
-                              {"id": 298793017, "role": "", "type": "W"},
-                              {"id": 147398685, "role": "", "type": "W"},
-                              {"id": 147398664, "role": "", "type": "W"},
-                              {"id": 298793014, "role": "", "type": "W"},
-                              {"id": 27345699, "role": "", "type": "W"},
-                              {"id": 384912016, "role": "", "type": "W"},
-                              {"id": 298792994, "role": "", "type": "W"}])))
-
-    conn.execute(route_table.data.insert()\
-        .values(dict(id=oid, name='Guschg - Steg', ref=147,
-                     symbol='osmc_LOC_red_bar_white_003100340037_black',
-                     country='li', level=3, top=True, intnames={}, network='',
-                     geom=f'SRID=3857;{route_geometry}')))
+def simple_route(conn, route_factory, hierarchy_table, route_geometry):
+    return route_factory(3972279, route_geometry,
+                         tags={"ref": "147", "name": "Guschg - Steg",
+                               "type": "route", "route": "hiking",
+                               "source": "llv.li", "network": "lwn",
+                               "distance": "8.53 km",
+                               "osmc:symbol": "red:red:white_bar:147:black"},
+                         members=[{"id": 119489294, "role": "", "type": "W"},
+                                  {"id": 35939583, "role": "", "type": "W"},
+                                  {"id": 298793003, "role": "", "type": "W"},
+                                  {"id": 298793015, "role": "", "type": "W"},
+                                  {"id": 298793017, "role": "", "type": "W"},
+                                  {"id": 147398685, "role": "", "type": "W"},
+                                  {"id": 147398664, "role": "", "type": "W"},
+                                  {"id": 298793014, "role": "", "type": "W"},
+                                  {"id": 27345699, "role": "", "type": "W"},
+                                  {"id": 384912016, "role": "", "type": "W"},
+                                  {"id": 298792994, "role": "", "type": "W"}],
+                         name='Guschg - Steg', ref=147,
+                         symbol='osmc_LOC_red_bar_white_003100340037_black',
+                         country='li', level=3, top=True, intnames={}, network='')
 
     return oid
 

@@ -14,7 +14,6 @@ from ...output.route_item import RouteItem
 
 import sqlalchemy as sa
 
-
 @hug.get()
 @hug.cli()
 def by_area(conn: directive.connection, tables: directive.tables,
@@ -38,8 +37,12 @@ def by_area(conn: directive.connection, tables: directive.tables,
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
-               .limit(limit)\
-               .order_by(sa.desc(r.c.level), r.c.name)
+               .limit(limit)
+
+    if 'level' in r.c:
+        sql = sql.order_by(sa.desc(r.c.level), r.c.name)
+    elif 'piste' in r.c:
+        sql = sql.order_by(sa.desc(r.c.piste), r.c.name)
 
     res.set_items(conn.execute(sql), locale)
 
@@ -56,8 +59,12 @@ def by_ids(conn: directive.connection, tables: directive.tables,
     r = tables.routes.data
 
     sql = sa.select(RouteItem.make_selectables(r))\
-               .where(r.c.id.in_(ids))\
-               .order_by(sa.desc(r.c.level), r.c.name)
+               .where(r.c.id.in_(ids))
+
+    if 'level' in r.c:
+        sql = sql.order_by(sa.desc(r.c.level), r.c.name)
+    elif 'piste' in r.c:
+        sql = sql.order_by(sa.desc(r.c.piste), r.c.name)
 
     res.set_items(conn.execute(sql), locale)
 

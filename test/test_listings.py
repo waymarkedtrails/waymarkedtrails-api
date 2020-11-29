@@ -19,17 +19,11 @@ def simple_segments(conn, segment_factory):
     segment_factory('0 0, -100 -100', 4)
 
 @pytest.fixture
-def simple_routes(conn, simple_segments, route_table, hierarchy_table):
-    conn.execute(route_table.data.insert()\
-        .values([dict(id=1, country='de', level=0, top=True, intnames={},
-                     geom='SRID=3857;LINESTRING(0 0, 100 100)'),
-                 dict(id=2, country='de', level=0, top=True, intnames={},
-                     geom='SRID=3857;LINESTRING(10 10, 50 50)'),
-                 dict(id=3, country='de', level=0, top=True, intnames={},
-                     geom='SRID=3857;LINESTRING(2000 2000, 2100 2100)'),
-                 dict(id=4, country='de', level=0, top=True, intnames={},
-                     geom='SRID=3857;LINESTRING(0 0, -100 -100)'),
-                ]))
+def simple_routes(conn, simple_segments, route_factory, hierarchy_table):
+    route_factory(1, 'LINESTRING(0 0, 100 100)')
+    route_factory(2, 'LINESTRING(10 10, 50 50)')
+    route_factory(3, 'LINESTRING(2000 2000, 2100 2100)')
+    route_factory(4, 'LINESTRING(0 0, -100 -100)')
 
 def test_by_area(simple_routes):
     response = hug.test.get(api, '/by_area', params={'bbox': '1, 1, 50, 50'})

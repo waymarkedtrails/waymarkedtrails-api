@@ -27,12 +27,12 @@ def create_context(*args, **kwargs):
 
 hug.defaults.context_factory = create_context
 
-@pytest.fixture
-def db():
+@pytest.fixture(params=('hiking', 'slopes'))
+def db(request):
     assert os.system('dropdb --if-exists ' + TEST_DATABASE) == 0
     assert os.system('createdb ' + TEST_DATABASE) == 0
 
-    TestContext.init_globals('hiking')
+    TestContext.init_globals(request.param)
 
     with TestContext.engine.begin() as conn:
         conn.execute("CREATE EXTENSION postgis")
@@ -81,9 +81,9 @@ def route_factory(conn, relations_table, route_table):
         values.update(kwargs)
         values['id'] = oid
         values['geom'] = f'SRID=3857;{geom}'
-        values.pop('members', None)
-        values.pop('tags', None)
+        values = { k: v for k, v in values.items() if k in route_table.data.c }
         conn.execute(route_table.data.insert().values(values))
+        return oid
 
     return factory
 

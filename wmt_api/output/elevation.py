@@ -83,14 +83,14 @@ class Dem:
 
 
 class RouteElevation:
-    """ Gets and format the elevation profile for a single route.
+    """ Collect and format the elevation profile for a single route.
     """
     def __init__(self, oid, dem_file, bounds):
         self.elevation = OrderedDict(id=oid, ascent=0, descent=0,
                                      end_position=0,
                                      min_elevation=None, max_elevation=None,
                                      segments=[])
-        dem = Dem(dem_file)
+        dem = Dem(str(dem_file.resolve()))
         self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
                                                     dem.raster_array(bounds)
 

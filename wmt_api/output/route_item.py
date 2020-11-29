@@ -61,7 +61,13 @@ class RouteItem(JsonSerializable):
         if 'network' in row and row['network'] is not None:
             return row['network']
 
-        return Network.from_int(row['level']).name
+        if 'level' in row:
+            return Network.from_int(row['level']).name
+
+        if 'piste' in row:
+            return row['piste']
+
+        return None
 
 
 class DetailedRouteItem(RouteItem):
@@ -70,7 +76,7 @@ class DetailedRouteItem(RouteItem):
     def make_selectables(cls, table, rel_table):
         fields = [ table.c[col] for col in cls._columns if col in table.c]
         if 'level' not in table.c and 'piste' in table.c:
-            fields.append(r.c.piste.label('level'))
+            fields.append(table.c.piste)
 
         fields.append(func.ST_Length2dSpheroid(func.ST_Transform(table.c.geom, 4326),
                            'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]').label("length"))

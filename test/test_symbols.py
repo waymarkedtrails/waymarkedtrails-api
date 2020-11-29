@@ -10,7 +10,7 @@ import falcon
 from wmt_api.api import symbols
 
 @pytest.fixture
-def symbol_dir(db, tmp_path, db_config):
+def symbol_dir(tmp_path, db_config):
     db_config.ROUTES.symbol_datadir = str(tmp_path)
     return tmp_path
 
@@ -28,7 +28,8 @@ def test_by_id(symbol_dir):
     assert response.data == '<svg></svg>'
 
 def test_from_tags(symbol_dir):
-    response = hug.test.get(symbols, 'from_tags/REG', {'ref': '23'})
+    response = hug.test.get(symbols, 'from_tags/REG',
+                            {'ref': '23', 'piste:type': 'nordic', 'color': 'red'})
     assert response.status == falcon.HTTP_OK
 
 def test_from_tags_unknown(symbol_dir):
