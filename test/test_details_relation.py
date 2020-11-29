@@ -22,18 +22,26 @@ def simple_route(conn, relations_table, route_table, hierarchy_table):
 
     conn.execute(route_table.data.insert()\
         .values(dict(id=oid, name='Hello World', symbol='test', country='de',
-                     level=0, top=True, intnames={},
+                     level=0, top=True,
+                     intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
                      geom='SRID=3857;LINESTRING(0 0, 100 100)')))
 
     return oid
 
+@pytest.fixture(params=[('de,en', 'Hallo Welt'),
+                       ('ch', 'Hello World'),
+                       ('es,fr', 'Bonjour Monde')])
+def language_names(request):
+    return request.param
 
-def test_info(simple_route):
-    response = hug.test.get(api, '/', oid=simple_route)
+
+def test_info(simple_route, language_names):
+    response = hug.test.get(api, '/', oid=simple_route,
+                            headers={'Accept-Language': language_names[0]})
     assert response.status == falcon.HTTP_OK
     data = response.data
     assert data['id'] == simple_route
-    assert data['name'] == 'Hello World'
+    assert data['name'] == language_names[1]
 
 
 def test_info_unknown(simple_route):
@@ -98,6 +106,18 @@ def test_geometry_kml(route_geoms):
     assert root.tag == '{http://www.opengis.net/kml/2.2}kml'
 
 
+def test_geometry_kml_locale_name(simple_route, language_names):
+    response = hug.test.get(api, '/geometry/kml', oid=simple_route,
+                            headers={'Accept-Language': language_names[0]})
+
+    assert response.status == falcon.HTTP_OK
+
+    root = ET.fromstring(response.data)
+    ele = root.find('{http://www.opengis.net/kml/2.2}Document')
+    assert ele
+    assert ele.findtext('{http://www.opengis.net/kml/2.2}name') == language_names[1]
+
+
 def test_geometry_gpx(route_geoms):
     response = hug.test.get(api, '/geometry/gpx', oid=route_geoms)
 
@@ -105,3 +125,15 @@ def test_geometry_gpx(route_geoms):
 
     root = ET.fromstring(response.data)
     assert root.tag == '{http://www.topografix.com/GPX/1/1}gpx'
+
+
+def test_geometry_gpx_locale_name(simple_route, language_names):
+    response = hug.test.get(api, '/geometry/gpx', oid=simple_route,
+                            headers={'Accept-Language': language_names[0]})
+
+    assert response.status == falcon.HTTP_OK
+
+    root = ET.fromstring(response.data)
+    ele = root.find('{http://www.topografix.com/GPX/1/1}metadata')
+    assert ele
+    assert ele.findtext('{http://www.topografix.com/GPX/1/1}name') == language_names[1]
