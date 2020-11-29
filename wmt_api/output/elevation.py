@@ -4,64 +4,27 @@
 # Copyright (C) 2012-2013 Espen Oldeman Lund
 # Copyright (C) 2020 Sarah Hoffmann
 
-import hug
-from collections import OrderedDict
 from math import ceil, fabs
+from collections import OrderedDict
 
 from osgeo import gdal
 import numpy
 from scipy.ndimage import map_coordinates
 
-def round_elevation(x, base=5):
-    return int(base * round(float(x)/base))
+def round_elevation(ele, base=5):
+    return int(base * round(float(ele)/base))
 
-def compute_ascent(elev):
-    """ Calculate accumulated ascent and descent.
-        Slightly complicated by the fact that we have to jump over voids.
-    """
-    accuracy = 15
-    formerHeight = None
-    firstvalid = None
-    lastvalid = None
-    accumulatedAscent = 0
-    for x in range (1, len(elev)-1):
-        currentHeight = elev[x]
-        if not numpy.isnan(currentHeight):
-            lastvalid = currentHeight
-            if formerHeight is None:
-                formerHeight = currentHeight
-                firstvalid = currentHeight
-            else:
-                if (elev[x-1] < currentHeight > elev[x+1]) or \
-                        (elev[x-1] > currentHeight < elev[x+1]):
-                    diff = currentHeight-formerHeight
-                    if fabs(diff) > accuracy:
-                        if diff > accuracy:
-                            accumulatedAscent += diff
-                        formerHeight = currentHeight
-
-    if lastvalid is None:
-        # looks like the route is completely within a void
-        return 0, 0
-
-    # collect the final point
-    diff = lastvalid - formerHeight
-    if diff > accuracy:
-        accumulatedAscent += diff
-
-    # ascent, descent
-    return round_elevation(accumulatedAscent), round_elevation(accumulatedAscent - (lastvalid - firstvalid))
 
 #
 # Code from http://stackoverflow.com/questions/5515720/python-smooth-time-series-data
 #
-def smooth_list(x,window_len=7,window='hanning'):
+def smooth_list(x, window_len=7, window='hanning'):
     if len(x) <= window_len:
         return x
 
-    s = numpy.r_[2*x[0] - x[window_len-1::-1], x, 2*x[-1] - x[-1:-window_len:-1]]
+    s = numpy.r_[2 * x[0] - x[window_len-1::-1], x, 2*x[-1] - x[-1:-window_len:-1]]
     if window == 'flat': #moving average
-        w = numpy.ones(window_len,'d')
+        w = numpy.ones(window_len, 'd')
     else:
         w = getattr(numpy, window)(window_len)
 
@@ -70,8 +33,7 @@ def smooth_list(x,window_len=7,window='hanning'):
     return y[window_len:-window_len+1]
 
 
-
-class Dem(object):
+class Dem:
 
     def __init__(self, src):
         self.source = gdal.Open(src)
@@ -97,29 +59,30 @@ class Dem(object):
         g0, g1, g2, g3, g4, g5 = self.transform
 
         if g2 == 0:
-            xPixel = (x - g0) / float(g1)
-            yPixel = (y - g3 - xPixel*g4) / float(g5)
+            x_pixel = (x - g0) / float(g1)
+            y_pixel = (y - g3 - x_pixel * g4) / float(g5)
         else:
-            xPixel = (y*g2 - x*g5 + g0*g5 - g2*g3) / float(g2*g4 - g1*g5)
-            yPixel = (x - g0 - xPixel*g1) / float(g2)
+            x_pixel = (y * g2 - x * g5 + g0 * g5 - g2 * g3) / float(g2 * g4 - g1 * g5)
+            y_pixel = (x - g0 - x_pixel * g1) / float(g2)
 
-        return xPixel, yPixel
+        return x_pixel, y_pixel
 
 
     def pixel_to_geo(self, x, y):
         g0, g1, g2, g3, g4, g5 = self.transform
 
         if g2 == 0:
-            xout = x*float(g1) + g0
-            yout = float(g5)*y + float(g4)*(x - g0)/g1 + g3
+            xout = x * float(g1) + g0
+            yout = float(g5) * y + float(g4) * (x - g0) / g1 + g3
         else:
-            xout = g2*y + x*g1 + float(g0)
-            yout = (x*(float(g2*g4)-float(g1*g5)+xout*g5-g0*g5+g2*g3))/float(g2)
+            xout = g2 * y + x * g1 + float(g0)
+            yout = (x * (float(g2 * g4) - float(g1 * g5)
+                    + xout * g5 - g0 * g5 + g2 * g3)) / float(g2)
 
         return xout, yout
 
 
-class RouteElevation(object):
+class RouteElevation:
     """ Gets and format the elevation profile for a single route.
     """
     def __init__(self, oid, dem_file, bounds):
@@ -131,8 +94,51 @@ class RouteElevation(object):
         self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
                                                     dem.raster_array(bounds)
 
-    def add_segment(self, xcoord, ycoord, pos):
+    def as_dict(self):
+        return self.elevation
 
+    def _add_ascent(self, elev):
+        """ Calculate accumulated ascent and descent.
+            Slightly complicated by the fact that we have to jump over voids.
+        """
+        accuracy = 15
+        former_height = None
+        first_valid = None
+        last_valid = None
+        accumulated_ascent = 0
+        for x in range (1, len(elev)-1):
+            current_height = elev[x]
+            if not numpy.isnan(current_height):
+                last_valid = current_height
+                if former_height is None:
+                    former_height = current_height
+                    first_valid = current_height
+                else:
+                    if (elev[x-1] < current_height > elev[x+1]) or \
+                            (elev[x-1] > current_height < elev[x+1]):
+                        diff = current_height - former_height
+                        if fabs(diff) > accuracy:
+                            if diff > accuracy:
+                                accumulated_ascent += diff
+                            former_height = current_height
+
+        if last_valid is None:
+            # looks like the route is completely within a void
+            return
+
+        # collect the final point
+        diff = last_valid - former_height
+        if diff > accuracy:
+            accumulated_ascent += diff
+
+        self.elevation['ascent'] += round_elevation(accumulated_ascent)
+        self.elevation['descent'] += round_elevation(accumulated_ascent
+                                                     - (last_valid - first_valid))
+
+
+    def add_segment(self, xcoord, ycoord, pos):
+        """ Add a continuous piece of route to the elevation outout.
+        """
         # Turn these into arrays of x & y coords
         xi = numpy.array(xcoord, dtype=numpy.float)
         yi = numpy.array(ycoord, dtype=numpy.float)
@@ -152,12 +158,9 @@ class RouteElevation(object):
         # Interpolate elevation values
         # map_coordinates does cubic interpolation by default, 
         # use "order=1" to preform bilinear interpolation
-        mapped = map_coordinates(self.band_array, [yi, xi], order=1)
         elev = smooth_list(map_coordinates(self.band_array, [yi, xi], order=1))
 
-        a, d = compute_ascent(elev)
-        self.elevation['ascent'] += a
-        self.elevation['descent'] += d
+        self._add_ascent(elev)
 
         elepoints = []
         for x, y, ele, p in zip(xcoord, ycoord, elev, pos):

@@ -180,4 +180,4 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     ele.elevation['length'] = float(res[1])
 
-    return ele.elevation
+    return ele.as_dict()

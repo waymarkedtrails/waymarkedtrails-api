@@ -3,10 +3,10 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
-import hug
 from math import isnan
 import collections
 
+import hug
 from sqlalchemy import func
 from geoalchemy2.elements import WKTElement
 

@@ -46,29 +46,29 @@ def locale(default=False, interface=None, request=None, argparse=None, **kwargs)
     return []
 
 @hug.directive()
-def connection(default=False, context : ApiContext=None, **kwargs):
+def connection(default=False, context: ApiContext=None, **kwargs):
     return context.connection
 
 @hug.directive()
-def status_table(default=False, context : ApiContext=None, **kwargs):
+def status_table(default=False, context: ApiContext=None, **kwargs):
     return context.tables.status
 
 @hug.directive()
-def tables(default=False, context : ApiContext=None, **kwargs):
+def tables(default=False, context: ApiContext=None, **kwargs):
     return context.tables.tables
 
 @hug.directive()
-def osmdata(default=False, context : ApiContext=None, **kwargs):
+def osmdata(default=False, context: ApiContext=None, **kwargs):
     return context.tables.osmdata
 
 @hug.directive()
-def shield_factory(default=False, context : ApiContext=None, **kwargs):
+def shield_factory(default=False, context: ApiContext=None, **kwargs):
     return context.shield_factory
 
 @hug.directive()
-def db_config(default=False, context : ApiContext=None, **kwargs):
+def db_config(default=False, context: ApiContext=None, **kwargs):
     return context.db_config
 
 @hug.directive()
-def api_config(default=False, context : ApiContext=None, **kwargs):
+def api_config(default=False, context: ApiContext=None, **kwargs):
     return context.api_config

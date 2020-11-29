@@ -3,9 +3,10 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
-import hug
 import json
 from io import StringIO
+
+import hug
 
 @hug.output_format.on_valid('application/json')
 def format_as_geojson(data, request=None, response=None):

@@ -26,11 +26,11 @@ def get_wikipedia_link(tags, locales):
             title = quote(wikientries[lang].replace(' ', '_'))
             return WIKIPEDIA_BASEURL.format(lang, title)
 
-        for k,v in wikientries.items():
-            url = WIKIPEDIA_TRANSLATEURL.format(k,quote(v.encode('utf8')),lang)
+        for k, v in wikientries.items():
+            url = WIKIPEDIA_TRANSLATEURL.format(k, quote(v.encode('utf8')), lang)
             try:
                 req = urllib.request.Request(url, headers={
-                    'User-Agent' : 'Python-urllib/2.7 Routemaps'
+                    'User-Agent' : 'waymarkedtrails.org'
                     })
                 data = urllib.request.urlopen(req).read().decode('utf-8')
                 data = json.loads(data)

@@ -20,12 +20,6 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
     b = Bbox((x * TILEWIDTH - MAPWIDTH, MAPWIDTH - (y + 1) * TILEWIDTH,
              (x + 1) * TILEWIDTH - MAPWIDTH, MAPWIDTH - y * TILEWIDTH))
 
-    # JSON header
-    out = StringIO()
-    out.write("""{ "type": "FeatureCollection",
-                    "crs": {"type": "name", "properties": {"name": "EPSG:3857"}},
-                    "features": [""")
-
     # Route ways
     d = tables.style.data
     q = sa.select([sa.literal('way').label('type'), d.c.toprels.label('top_relations'),

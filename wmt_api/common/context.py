@@ -32,13 +32,13 @@ class ApiContext(object):
         try:
             cls.db_config = importlib.import_module(f'wmt_db.config.{mapname}')
         except ModuleNotFoundError:
-            log.error(f"Cannot find DB config for route map named '{mapname}'.")
+            log.error("Cannot find DB config for route map named '%s'.", mapname)
             raise
 
         try:
             cls.api_config = importlib.import_module(f'wmt_api.config.{mapname}')
         except ModuleNotFoundError:
-            log.error(f"Cannot find DB config for route map named '{mapname}'.")
+            log.error("Cannot find DB config for route map named '%s'.", mapname)
             raise
 
         cls.shield_factory = ShieldFactory(cls.db_config.ROUTES.symbols,
@@ -50,7 +50,7 @@ class ApiContext(object):
             mapdb_pkg = importlib.import_module(
                           f'wmt_db.maptype.{cls.db_config.MAPTYPE}')
         except ModuleNotFoundError:
-            log.error(f"Unknown map type '{cls.db_config.MAPTYPE}'.")
+            log.error("Unknown map type '%s'.", cls.db_config.MAPTYPE)
             raise
 
         class Options:
@@ -62,10 +62,10 @@ class ApiContext(object):
     @classmethod
     def create_engine(cls):
         cls.engine = create_engine(URL('postgresql',
-                                        database=cls.db_config.DB_NAME,
-                                        username=cls.db_config.DB_USER,
-                                        password=cls.db_config.DB_PASSWORD
-                                        ), echo=False)
+                                       database=cls.db_config.DB_NAME,
+                                       username=cls.db_config.DB_USER,
+                                       password=cls.db_config.DB_PASSWORD
+                                      ), echo=False)
 
     @property
     def connection(self):
