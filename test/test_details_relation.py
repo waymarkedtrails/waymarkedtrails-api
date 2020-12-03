@@ -13,16 +13,14 @@ import shapely
 import wmt_api.api.details.relation as api
 import wmt_api.api.details.routes as routes_api
 
+pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
+
 @pytest.fixture
 def simple_route(conn, route_factory, hierarchy_table):
-    oid = 458374
+    return route_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
+                         intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
+                         tags={'this' : 'that', 'me': 'you'})
 
-    route_factory(oid, 'LINESTRING(0 0, 100 100)', name='Hello World',
-                  intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
-                  tags={'this' : 'that', 'me': 'you'},
-                  members=[dict(id=1, type='W', role='')])
-
-    return oid
 
 @pytest.fixture(params=[('de,en', 'Hallo Welt'),
                        ('ch', 'Hello World'),

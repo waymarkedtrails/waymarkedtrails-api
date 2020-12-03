@@ -3,7 +3,7 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 """
-Details API functions for route relations (from the route table).
+Details API functions for joined ways (from the way table).
 """
 from array import array
 
@@ -25,11 +25,10 @@ from ...output.elevation import RouteElevation
 def info(conn: directive.connection, tables: directive.tables,
          osmdata: directive.osmdata, locale: directive.locale,
          oid: hug.types.number):
-    "Return general information about the route."
+    "Return general information about the way."
 
-    r = tables.routes.data
-    o = osmdata.relation.data
-    h = tables.hierarchy.data
+    r = tables.ways.data
+    o = osmdata.way.data
 
     sql = sa.select(DetailedRouteItem.make_selectables(r, o))\
                             .where(r.c.id==oid)\
@@ -40,24 +39,8 @@ def info(conn: directive.connection, tables: directive.tables,
     if row is None:
         raise hug.HTTPNotFound()
 
-    res = DetailedRouteItem(row, locale)
+    return DetailedRouteItem(row, locale)
 
-    # add hierarchy where applicable
-    for rtype in ('subroutes', 'superroutes'):
-        if rtype == 'subroutes':
-            w = sa.select([h.c.child], distinct=True)\
-                    .where(h.c.parent == oid).where(h.c.depth == 2)
-        else:
-            w = sa.select([h.c.parent], distinct=True)\
-                     .where(h.c.child == oid).where(h.c.depth == 2)
-
-        sections = conn.execute(sa.select(RouteItem.make_selectables(r))\
-                                 .where(r.c.id != oid).where(r.c.id.in_(w)))
-
-        if sections.rowcount > 0:
-            res.add_extra_info(rtype, [RouteItem(s) for s in sections])
-
-    return res
 
 @hug.get('/wikilink', output=format_as_redirect)
 @hug.cli(output=hug.output_format.text)
@@ -65,7 +48,7 @@ def wikilink(conn: directive.connection, osmdata: directive.osmdata,
              locale: directive.locale, oid: hug.types.number):
     "Return a redirct into the Wikipedia page with further information."
 
-    r = osmdata.relation.data
+    r = osmdata.way.data
 
     return get_wikipedia_link(
              conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
@@ -78,22 +61,28 @@ def geometry(conn: directive.connection, tables: directive.tables,
              oid: hug.types.number,
              geomtype : hug.types.one_of(('geojson', 'kml', 'gpx')),
              simplify : int = None):
-    """ Return the geometry of the function. Supported formats are geojson,
+    """ Return the geometry of the way. Supported formats are geojson,
         kml and gpx.
     """
-    r = tables.routes.data
+    w = tables.ways.data
+    ws = tables.joined_ways.data
 
-    geom = r.c.geom
+    geom = gf.ST_LineMerge(gf.ST_Collect(w.c.geom))
+
     if simplify is not None:
         geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
+
     if geomtype == 'geojson' :
         geom = geom.ST_AsGeoJSON()
     else:
         geom = geom.ST_Transform(4326)
 
-    rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
+    sql = sa.select([w.c.name, w.c.intnames, w.c.ref, ws.c.id, geom.label('geom')])\
+            .where(w.c.id == ws.c.child)\
+            .where(ws.c.id == oid)\
+            .group_by(w.c.name, w.c.intnames, w.c.ref, ws.c.id)
 
-    obj = conn.execute(sa.select(rows).where(r.c.id==oid)).first()
+    obj = conn.execute(sql).first()
 
     if obj is None:
         raise hug.HTTPNotFound()
@@ -106,37 +95,20 @@ def geometry(conn: directive.connection, tables: directive.tables,
 def elevation(conn: directive.connection, tables: directive.tables,
               cfg: directive.api_config,
               oid: hug.types.number, segments: hug.types.in_range(1, 500) = 100):
-    "Return the elevation profile of the route."
+    "Return the elevation profile of the way."
 
-    r = tables.routes.data
+    w = tables.ways.data
+    ws = tables.joined_ways.data
 
-    gen = sa.select([sa.func.generate_series(0, segments).label('i')]).alias()
-    field = gf.ST_LineInterpolatePoint(r.c.geom, gen.c.i/float(segments))
-    field = gf.ST_Collect(field)
+    sql = sa.select([gf.ST_LineMerge(gf.ST_Collect(w.c.geom)).label('geom')])\
+            .where(w.c.id == ws.c.child)\
+            .where(ws.c.id == oid)\
+            .alias()
 
-    sel = sa.select([field]).where(r.c.id == oid)\
-            .where(r.c.geom.ST_GeometryType() == 'ST_LineString')
-
-    res = conn.scalar(sel)
-
-    if res is not None:
-        geom = to_shape(res)
-        ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
-
-        xcoord, ycoord = zip(*((p.x, p.y) for p in geom))
-        geomlen = LineString(geom).length
-        pos = [geomlen*i/float(segments) for i in range(segments)]
-
-        ele.add_segment(xcoord, ycoord, pos)
-
-        return ele.as_dict()
-
-    # special treatment for multilinestrings
-    sel = sa.select([r.c.geom,
+    sel = sa.select([sql.c.geom,
                      sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
                              'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                     r.c.geom.ST_NPoints()])\
-                .where(r.c.id == oid)
+                     sql.c.geom.ST_NPoints()])
 
     res = conn.execute(sel).first()
 

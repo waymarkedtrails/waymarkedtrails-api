@@ -9,6 +9,8 @@ import falcon
 
 from wmt_api.api import symbols
 
+pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
+
 @pytest.fixture
 def symbol_dir(tmp_path, db_config):
     db_config.ROUTES.symbol_datadir = str(tmp_path)

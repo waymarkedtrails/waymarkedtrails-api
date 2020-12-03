@@ -9,6 +9,7 @@ import falcon
 
 import wmt_api.api.listings.routes as api
 
+pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
 
 @pytest.fixture
 def simple_segments(conn, segment_factory):

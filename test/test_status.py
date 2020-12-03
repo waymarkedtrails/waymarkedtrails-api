@@ -3,11 +3,14 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2020 Sarah Hoffmann
 
+import pytest
 import hug
 import falcon
 from datetime import datetime, timezone
 
 from wmt_api.api import base
+
+pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
 
 def test_status_missing_date(db, status_table):
     response = hug.test.get(base, 'v1/status')
