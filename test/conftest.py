@@ -151,5 +151,27 @@ def segment_factory(conn, segments_table):
     return factory
 
 @pytest.fixture
+def style_table(conn):
+    TestContext.tables.tables.style.data.create(conn)
+    return TestContext.tables.tables.style
+
+@pytest.fixture
+def style_factory(conn, style_table):
+    segment_id = itertools.count(1)
+    def factory(geom, *kwargs):
+        geom=f'SRID=3857;{geom}'
+        conn.execute(style_table.data.insert()
+                       .values(dict(id=next(segment_id), geom=geom,
+                                    geom100=geom, *kwargs)))
+
+    return factory
+
+@pytest.fixture
+def guidepost_table(conn):
+    TestContext.tables.tables.guideposts.data.create(conn)
+    return TestContext.tables.tables.guideposts
+
+
+@pytest.fixture
 def db_config(db):
     return TestContext.db_config
