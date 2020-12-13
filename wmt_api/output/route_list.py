@@ -20,6 +20,9 @@ class RouteList(JsonSerializable):
     def add_item(self, obj, locale):
         self.content['results'].append(RouteItem(obj, locale))
 
+    def add_items(self, objs, locale):
+        self.content['results'].extend([RouteItem(obj, locale) for obj in objs])
+
     def drop_leading_results(self, num):
         del self.content['results'][0:num]
 

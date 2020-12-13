@@ -7,9 +7,13 @@ import pytest
 import hug
 import falcon
 
-import wmt_api.api.listings.routes as api
+import wmt_api.api.listings.routes as routes_api
 
-pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
+pytestmark = pytest.mark.parametrize("db", ["hiking"], indirect=True)
+
+@pytest.fixture
+def api(mapname):
+    return routes_api
 
 @pytest.fixture
 def simple_segments(conn, segment_factory):
@@ -26,30 +30,31 @@ def simple_routes(conn, simple_segments, route_factory, hierarchy_table):
     route_factory(3, 'LINESTRING(2000 2000, 2100 2100)')
     route_factory(4, 'LINESTRING(0 0, -100 -100)')
 
-def test_by_area(simple_routes):
+def test_by_area(simple_routes, api):
     response = hug.test.get(api, '/by_area', params={'bbox': '1, 1, 50, 50'})
 
     assert response.status == falcon.HTTP_OK
     assert len(response.data['results']) == 2
 
-def test_by_area_empty(simple_routes):
+def test_by_area_empty(simple_routes, api):
     response = hug.test.get(api, '/by_area', params={'bbox': '200, 200, 250, 250'})
 
     assert response.status == falcon.HTTP_OK
     assert len(response.data['results']) == 0
 
-def test_byids(simple_routes):
-    response = hug.test.get(api, '/by_ids', params={'ids': '3,4,5'})
+def test_byids(simple_routes, api):
+    response = hug.test.get(api, '/by_ids', params={'relations': '3,4,5'})
 
     assert response.status == falcon.HTTP_OK
+    assert len(response.data['results']) == 2
 
-def test_byids_empty(simple_routes):
-    response = hug.test.get(api, '/by_ids', params={'ids': '101'})
+def test_byids_empty(simple_routes, api):
+    response = hug.test.get(api, '/by_ids', params={'relations': '101'})
 
     assert response.status == falcon.HTTP_OK
     assert len(response.data['results']) == 0
 
-def test_search(simple_segments, route_factory):
+def test_search(simple_segments, route_factory, api):
     route_factory(1, 'LINESTRING(0 0, 100 100)', name='Tree route')
     route_factory(2, 'LINESTRING(0 0, 100 100)', name='Foo',
                   intnames = {'de' : 'Tree route'})
@@ -59,7 +64,7 @@ def test_search(simple_segments, route_factory):
     assert response.status == falcon.HTTP_OK
     assert len(response.data['results']) == 1
 
-def test_segments(simple_routes):
+def test_segments(simple_routes, api):
     response = hug.test.get(api, '/segments',
                             params={'bbox': '50, 50, 1, 1', 'relations':'1,3'})
 

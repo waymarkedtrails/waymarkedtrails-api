@@ -16,7 +16,7 @@ from .json_convert import JsonSerializable
 class RouteItem(JsonSerializable):
 
     _columns = ('id', 'name', 'intnames', 'symbol', 'level', 'ref',
-                              'network', 'itinerary')
+                'piste', 'network', 'itinerary')
 
     @classmethod
     def make_selectables(cls, table):

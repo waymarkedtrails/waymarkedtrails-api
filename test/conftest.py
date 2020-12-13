@@ -51,6 +51,10 @@ def conn(db):
         yield conn
 
 @pytest.fixture
+def mapname(db):
+    return TestContext.mapname
+
+@pytest.fixture
 def status_table(conn):
     TestContext.tables.status.create(conn)
     return TestContext.tables.status
@@ -94,13 +98,15 @@ def osm_ways_table(conn):
 
 @pytest.fixture
 def ways_table(conn):
-    TestContext.tables.tables.ways.data.create(conn)
-    return TestContext.tables.tables.ways
+    if 'ways' in TestContext.tables.tables:
+        TestContext.tables.tables.ways.data.create(conn)
+        return TestContext.tables.tables.ways
 
 @pytest.fixture
 def joined_ways_table(conn):
-    TestContext.tables.tables.joined_ways.data.create(conn)
-    return TestContext.tables.tables.joined_ways
+    if 'joined_ways' in TestContext.tables.tables:
+        TestContext.tables.tables.joined_ways.data.create(conn)
+        return TestContext.tables.tables.joined_ways
 
 @pytest.fixture
 def way_factory(conn, osm_ways_table, ways_table):
@@ -117,7 +123,7 @@ def way_factory(conn, osm_ways_table, ways_table):
         conn.execute(ways_table.data.insert().values(values))
         return oid
 
-    return factory
+    return None if ways_table is None else factory
 
 @pytest.fixture
 def joined_way_factory(conn, joined_ways_table):
@@ -126,7 +132,7 @@ def joined_way_factory(conn, joined_ways_table):
                        .values([dict(id=ids[0], child=x) for x in ids]))
         return ids[0]
 
-    return factory
+    return None if joined_ways_table is None else factory
 
 @pytest.fixture
 def segments_table(conn):

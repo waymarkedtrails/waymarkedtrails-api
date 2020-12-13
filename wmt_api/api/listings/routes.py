@@ -37,12 +37,8 @@ def by_area(conn: directive.connection, tables: directive.tables,
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
-               .limit(limit)
-
-    if 'level' in r.c:
-        sql = sql.order_by(sa.desc(r.c.level), r.c.name)
-    elif 'piste' in r.c:
-        sql = sql.order_by(sa.desc(r.c.piste), r.c.name)
+               .limit(limit)\
+               .order_by(sa.desc(r.c.level), r.c.name)
 
     res.set_items(conn.execute(sql), locale)
 
@@ -51,20 +47,16 @@ def by_area(conn: directive.connection, tables: directive.tables,
 @hug.get()
 @hug.cli()
 def by_ids(conn: directive.connection, tables: directive.tables,
-           locale: directive.locale, ids: route_id_list):
+           locale: directive.locale, relations: route_id_list):
     """ Return route overview information by relation id.
     """
-    res = RouteList(ids=ids)
+    res = RouteList(relations=relations)
 
     r = tables.routes.data
 
     sql = sa.select(RouteItem.make_selectables(r))\
-               .where(r.c.id.in_(ids))
-
-    if 'level' in r.c:
-        sql = sql.order_by(sa.desc(r.c.level), r.c.name)
-    elif 'piste' in r.c:
-        sql = sql.order_by(sa.desc(r.c.piste), r.c.name)
+            .where(r.c.id.in_(relations))\
+            .order_by(sa.desc(r.c.level), r.c.name)
 
     res.set_items(conn.execute(sql), locale)
 
@@ -133,7 +125,7 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sql = sa.select([("r" + r.c.id.cast(sa.Text)).label('id'),
+    sql = sa.select([sa.literal("relation").label('type'), r.c.id,
                      r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
               .where(r.c.id.in_(relations)).alias()
 

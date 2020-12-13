@@ -30,11 +30,16 @@ if ApiContext.db_config.MAPTYPE == 'routes':
     from wmt_api.api.listings import routes as listings
     from wmt_api.api.details import routes as details
     from wmt_api.api.tiles import routes as tiles
-    hug.API(__name__).extend(listings, '/api/list')
-    hug.API(__name__).extend(details, '/api/details')
-    hug.API(__name__).extend(tiles, '/api/tiles')
+elif ApiContext.db_config.MAPTYPE == 'slopes':
+    from wmt_api.api.listings import slopes as listings
+    from wmt_api.api.details import slopes as details
+    from wmt_api.api.tiles import slopes as tiles
 else:
     raise RuntimeError(f"No API specified for map type '{ApiContext.db_config.MAPTYPE}'")
+
+hug.API(__name__).extend(listings, '/api/list')
+hug.API(__name__).extend(details, '/api/details')
+hug.API(__name__).extend(tiles, '/api/tiles')
 
 application = __hug_wsgi__
 
