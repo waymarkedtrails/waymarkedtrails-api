@@ -7,12 +7,12 @@ import pytest
 import hug
 import falcon
 
-import wmt_api.api.tiles.routes as api
+import wmt_api.api.tiles.slopes as api
 
-pytestmark = pytest.mark.parametrize("db", ["hiking"], indirect=True)
+pytestmark = pytest.mark.parametrize("db", ["slopes"], indirect=True)
 
 @pytest.fixture
-def simple_routes(conn, style_factory, guidepost_table):
+def simple_routes(conn, style_factory):
     style_factory('LINESTRING(0 0, 100 100)')
     style_factory('LINESTRING(10 10, 50 50)')
     style_factory('LINESTRING(2000 2000, 2100 2100)')
