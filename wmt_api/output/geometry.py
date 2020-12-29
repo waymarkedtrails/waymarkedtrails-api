@@ -60,7 +60,7 @@ class RouteGeometry(object):
         ET.SubElement(meta, 'name').text = name
 
         copy = ET.SubElement(meta, 'copyright', author='OpenStreetMap and Contributors')
-        ET.SubElement(copy, 'license').text = 'http://www.openstreetmap.org/copyright'
+        ET.SubElement(copy, 'license').text = 'https://www.openstreetmap.org/copyright'
 
         if request is not None:
             link = ET.SubElement(

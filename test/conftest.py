@@ -15,6 +15,14 @@ from wmt_api.common.context import ApiContext
 
 TEST_DATABASE = 'test_wmt_api'
 
+# Handling of our self-explaining compare object. They need to
+# have an attribute named 'explain_assert'.
+def pytest_assertrepr_compare(op, left, right):
+    if hasattr(left, 'explain_assert'):
+        return left.explain_assert
+    if hasattr(right, 'explain_assert'):
+        return right.explain_assert
+
 class TestContext(ApiContext):
 
     @classmethod
@@ -97,6 +105,11 @@ def osm_ways_table(conn):
     return TestContext.tables.osmdata.way
 
 @pytest.fixture
+def osm_nodes_table(conn):
+    TestContext.tables.osmdata.node.create(conn)
+    return TestContext.tables.osmdata.node
+
+@pytest.fixture
 def ways_table(conn):
     if 'ways' in TestContext.tables.tables:
         TestContext.tables.tables.ways.data.create(conn)
@@ -170,6 +183,17 @@ def style_factory(conn, style_table):
 def guidepost_table(conn):
     TestContext.tables.tables.guideposts.data.create(conn)
     return TestContext.tables.tables.guideposts
+
+@pytest.fixture
+def guidepost_factory(conn, guidepost_table, osm_nodes_table):
+    def factory(oid, x, y, name=None, ele=None, tags=None):
+        conn.execute(guidepost_table.data.insert()
+                       .values(dict(id=oid, name=name, ele=ele,
+                                    geom=f'SRID=3857;POINT({x} {y})')))
+        conn.execute(osm_nodes_table.data.insert()
+                       .values(dict(id=oid, tags=tags or {}, geom='SRID=4326;POINT(0 0)')))
+
+    return factory
 
 
 @pytest.fixture
