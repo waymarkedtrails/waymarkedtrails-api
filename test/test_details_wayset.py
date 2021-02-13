@@ -16,10 +16,12 @@ import wmt_api.api.details.slopes as slopes_api
 pytestmark = pytest.mark.parametrize("db", ["slopes"], indirect=True)
 
 @pytest.fixture
-def simple_way(conn, way_factory):
-    return way_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
+def simple_way(conn, way_factory, joined_way_factory):
+    way_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
                        intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
                        tags={'this' : 'that', 'me': 'you'})
+
+    return joined_way_factory(458374)
 
 @pytest.fixture(params=[('de,en', 'Hallo Welt'),
                        ('ch', 'Hello World'),
@@ -47,7 +49,7 @@ def test_info_via_routes(simple_way):
     assert data['name'] == 'Hello World'
 
 
-def test_info_unknown(conn, osm_ways_table, ways_table):
+def test_info_unknown(conn, osm_ways_table, ways_table, joined_ways_table):
     assert hug.test.get(api, '/', oid=11).status == falcon.HTTP_NOT_FOUND
 
 
@@ -82,6 +84,17 @@ def complex_way(conn, way_factory, joined_way_factory):
     way_factory(4, 'LINESTRING(0 120, 0 140)')
 
     return joined_way_factory(1, 2, 3, 4)
+
+
+def test_info_complex_way(complex_way):
+    response = hug.test.get(api, '/', oid=complex_way)
+    assert response.status == falcon.HTTP_OK
+    data = response.data
+
+    assert data['type'] == 'wayset'
+    assert data['id'] == complex_way
+    assert data['bbox'] == [0, 0, 120, 140]
+
 
 def test_geometry_geojson(complex_way):
     response = hug.test.get(api, '/geometry/geojson', oid=complex_way)

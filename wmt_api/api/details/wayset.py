@@ -29,12 +29,25 @@ def info(conn: directive.connection, tables: directive.tables,
 
     r = tables.ways.data
     o = osmdata.way.data
+    ws = tables.joined_ways.data
 
-    sql = sa.select(DetailedRouteItem.make_selectables(r, o))\
-                            .where(r.c.id==oid)\
-                            .where(o.c.id==oid)
+    w = tables.ways.data
+    geom = sa.select([gf.ST_Collect(w.c.geom).label('geom')])\
+             .where(ws.c.id == oid)\
+             .where(w.c.id == ws.c.child)\
+             .alias()
 
-    row = conn.execute(sql).first()
+    fields = [r.c.id, r.c.name, r.c.intnames, r.c.symbol, r.c.ref,
+              r.c.piste, o.c.tags, geom]
+
+    sql = sa.select(fields).where(r.c.id==oid).where(o.c.id==oid).alias()
+
+    fields = list(sql.c)
+    fields.append(sa.func.ST_Length2dSpheroid(gf.ST_Transform(sql.c.geom, 4326),
+                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]').label("length"))
+    fields.append(sql.c.geom.ST_Envelope().label('bbox'))
+
+    row = conn.execute(sa.select(fields)).first()
 
     if row is None:
         raise hug.HTTPNotFound()
