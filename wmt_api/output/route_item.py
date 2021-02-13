@@ -22,15 +22,15 @@ class RouteItem(JsonSerializable):
     def make_selectables(cls, table):
         return [ table.c[col] for col in cls._columns if col in table.c]
 
-    def __init__(self, row, locales=[]):
+    def __init__(self, row, locales=[], objtype='relation'):
         self.content = OrderedDict()
-        self._set_row_data(row, locales)
+        self._set_row_data(row, locales, objtype)
 
     def to_json_serializable(self):
         return self.content
 
-    def _set_row_data(self, row, locales):
-        self._add_optional('type', row, 'type', 'relation')
+    def _set_row_data(self, row, locales, objtype):
+        self.content['type'] = objtype
 
         for e in ('id', 'ref'):
             self._add_optional(e, row, e)
@@ -85,8 +85,8 @@ class DetailedRouteItem(RouteItem):
 
         return fields
 
-    def __init__(self, row, locales=[]):
-        super().__init__(row, locales)
+    def __init__(self, row, locales=[], objtype='relation'):
+        super().__init__(row, locales, objtype)
         self._add_details(row, locales)
 
     def _add_details(self, row, locales):

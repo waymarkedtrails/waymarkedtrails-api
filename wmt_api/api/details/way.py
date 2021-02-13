@@ -39,7 +39,7 @@ def info(conn: directive.connection, tables: directive.tables,
     if row is None:
         raise hug.HTTPNotFound()
 
-    return DetailedRouteItem(row, locale)
+    return DetailedRouteItem(row, locale, objtype='way')
 
 
 @hug.get('/wikilink', output=format_as_redirect)

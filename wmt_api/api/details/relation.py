@@ -40,7 +40,7 @@ def info(conn: directive.connection, tables: directive.tables,
     if row is None:
         raise hug.HTTPNotFound()
 
-    res = DetailedRouteItem(row, locale)
+    res = DetailedRouteItem(row, locale, objtype='relation')
 
     # add hierarchy where applicable
     for rtype in ('subroutes', 'superroutes'):

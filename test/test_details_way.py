@@ -33,6 +33,7 @@ def test_info(simple_way, language_names):
                             headers={'Accept-Language': language_names[0]})
     assert response.status == falcon.HTTP_OK
     data = response.data
+    assert data['type'] == 'way'
     assert data['id'] == simple_way
     assert data['name'] == language_names[1]
 
@@ -41,6 +42,7 @@ def test_info_via_routes(simple_way):
     response = hug.test.get(slopes_api, f'/way/{simple_way}')
     assert response.status == falcon.HTTP_OK
     data = response.data
+    assert data['type'] == 'way'
     assert data['id'] == simple_way
     assert data['name'] == 'Hello World'
 
