@@ -100,7 +100,7 @@ class DetailedRouteItem(RouteItem):
             self._add_optional(tag, row, None, loctags.get(tag))
 
         self._add_optional('url', row, None, loctags.get_url())
-        self._add_optional('wikipedia', row, None, loctags.get_wikipedia_tags())
+        self._add_optional('wikipedia', row, None, loctags.get_wikipedia_tags() or None)
 
         self.content['bbox'] = to_shape(row['bbox']).bounds
         self.content['tags'] = row['tags']

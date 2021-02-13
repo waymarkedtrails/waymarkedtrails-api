@@ -177,8 +177,8 @@ def search(conn: directive.connection, tables: directive.tables,
 @hug.get(output=format_as_geojson)
 @hug.cli(output=format_as_geojson)
 def segments(conn: directive.connection, tables: directive.tables,
-             bbox: bbox_type, relations: route_id_list,
-             ways: route_id_list, waysets: route_id_list):
+             bbox: bbox_type, relations: route_id_list = None,
+             ways: route_id_list = None, waysets: route_id_list = None):
     """ Return the geometry of the routes `ids` that intersect with the
         boundingbox `bbox`. If the route goes outside the box, the geometry
         is cut accordingly.
@@ -191,7 +191,7 @@ def segments(conn: directive.connection, tables: directive.tables,
                          r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
                 .where(r.c.id.in_(relations)).alias()
 
-        sql = sa.select([sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):
@@ -203,13 +203,13 @@ def segments(conn: directive.connection, tables: directive.tables,
                          w.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
                 .where(w.c.id.in_(ways)).alias()
 
-        sql = sa.select([sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):
             objs.append(x)
 
-    if waysets is not None:
+    if waysets:
         ws = tables.joined_ways.data
         sql = sa.select([sa.literal("wayset").label('type'),
                          ws.c.id.label('id'),
@@ -219,7 +219,7 @@ def segments(conn: directive.connection, tables: directive.tables,
                 .select_from(w.join(ws, w.c.id == ws.c.child))\
                 .where(ws.c.id.in_(waysets)).group_by(ws.c.id).alias()
 
-        sql = sa.select([sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):

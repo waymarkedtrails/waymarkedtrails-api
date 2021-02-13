@@ -125,11 +125,11 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sql = sa.select([sa.literal("relation").label('type'), r.c.id,
-                     r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
+    sql = sa.select([r.c.id, r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
               .where(r.c.id.in_(relations)).alias()
 
-    sql = sa.select([sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+    sql = sa.select([sa.literal("relation").label('type'),
+                     sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
             .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
     return conn.execute(sql)
