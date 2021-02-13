@@ -23,6 +23,7 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
     # Route ways
     d = tables.style.data
     q = sa.select([sa.literal('way').label('type'),
+                   d.c.sources.label('top_relations'),
                    d.c.symbol.label('shields'),
                    d.c.novice, d.c.easy, d.c.intermediate, d.c.advanced,
                    d.c.expert, d.c.extreme, d.c.freeride, d.c.downhill,
@@ -33,5 +34,17 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
 
 
     elements = list(conn.execute(q))
+
+    # Joined ways
+    d = tables.ways.data
+    q = sa.select([sa.literal('joined_way').label('type'),
+                   d.c.id.label('way_id'),
+                   d.c.symbol.label('shield'),
+                   d.c.difficulty, d.c.piste, # TODO: take apart
+                   d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry')])\
+          .where(d.c.geom.intersects(b.as_sql()))\
+          .order_by(d.c.id)
+
+    elements.extend(list(conn.execute(q)))
 
     return elements
