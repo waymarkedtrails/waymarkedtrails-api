@@ -12,7 +12,7 @@ import wmt_api.api.tiles.slopes as api
 pytestmark = pytest.mark.parametrize("db", ["slopes"], indirect=True)
 
 @pytest.fixture
-def simple_routes(conn, style_factory, way_factory):
+def simple_routes(conn, style_factory, way_factory, joined_ways_table):
     style_factory('LINESTRING(0 0, 100 100)')
     style_factory('LINESTRING(10 10, 50 50)')
     style_factory('LINESTRING(2000 2000, 2100 2100)')

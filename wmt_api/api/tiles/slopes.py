@@ -37,8 +37,13 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
 
     # Joined ways
     d = tables.ways.data
-    q = sa.select([sa.literal('joined_way').label('type'),
+    ws = tables.joined_ways.data
+
+    wayset_id = sa.select([sa.func.array_agg(ws.c.id).label('ids')]).where(ws.c.child == d.c.id).as_scalar()
+
+    q = sa.select([sa.literal('wayset').label('type'),
                    d.c.id.label('way_id'),
+                   wayset_id.label('wayset_ids'),
                    d.c.symbol.label('shield'),
                    d.c.difficulty, d.c.piste, # TODO: take apart
                    d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry')])\
