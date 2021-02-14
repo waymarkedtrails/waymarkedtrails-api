@@ -43,6 +43,12 @@ def test_by_area(simple_routes, api):
     assert response.status == falcon.HTTP_OK
     assert len(response.data['results']) == 4
 
+    results = { (r['type'], r['id']) : r for r in response.data['results'] }
+    assert ('relation', 1) in results
+    assert ('relation', 2) in results
+    assert ('wayset', 100) in results
+    assert ('way', 102) in results
+
 def test_by_area_empty(simple_routes, api):
     response = hug.test.get(api, '/by_area', params={'bbox': '200, 200, 250, 250'})
 

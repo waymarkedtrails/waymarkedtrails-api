@@ -93,23 +93,24 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     r = tables.ways.data
 
-    gen = sa.select([sa.func.generate_series(0, segments).label('i')]).alias()
-    field = gf.ST_LineInterpolatePoint(r.c.geom, gen.c.i/float(segments))
-    field = gf.ST_Collect(field)
+    sel = sa.select([gf.ST_Points(gf.ST_Collect(
+                         gf.ST_PointN(r.c.geom, 1),
+                         gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
+                     sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
+                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]')
+                    ]).where(r.c.id == oid)
 
-    sel = sa.select([field]).where(r.c.id == oid)
-
-    res = conn.scalar(sel)
+    res = conn.execute(sel).first()
 
     if res is None:
         raise hug.HTTPNotFound()
 
-    geom = to_shape(res)
+    geom = to_shape(res[0])
     ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
 
     xcoord, ycoord = zip(*((p.x, p.y) for p in geom))
-    geomlen = LineString(geom).length
-    pos = [geomlen*i/float(segments) for i in range(segments)]
+    geomlen = res[1]
+    pos = [geomlen*i/float(segments) for i in range(segments + 1)]
 
     ele.add_segment(xcoord, ycoord, pos)
 

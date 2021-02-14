@@ -30,7 +30,7 @@ class RouteItem(JsonSerializable):
         return self.content
 
     def _set_row_data(self, row, locales, objtype):
-        self.content['type'] = objtype
+        self.content['type'] = row['type'] if 'type' in row else objtype
 
         for e in ('id', 'ref'):
             self._add_optional(e, row, e)
