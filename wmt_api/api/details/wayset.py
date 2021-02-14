@@ -129,12 +129,16 @@ def elevation(conn: directive.connection, tables: directive.tables,
         raise hug.HTTPNotFound()
 
     geom = to_shape(res[0])
+
     ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
 
     if res[2] > 10000:
         geom = geom.simplify(res[2]/500, preserve_topology=False)
     elif res[2] > 4000:
         geom = geom.simplify(res[2]/1000, preserve_topology=False)
+
+    if geom.geom_type == 'LineString':
+        geom = [geom]
 
     prev = None
     for seg in geom:
