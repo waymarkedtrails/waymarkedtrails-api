@@ -118,9 +118,8 @@ def simple_wayset_linear(conn, way_factory, joined_way_factory):
 
 @pytest.mark.parametrize("db", ["slopes"], indirect=True)
 def test_wayset_linear_elevation(simple_wayset_linear):
-    check_elevation_response(simple_wayset_linear,
-                             hug.test.get(wayset_api, '/elevation',
-                                          oid=simple_wayset_linear))
+    response = hug.test.get(wayset_api, '/elevation', oid=simple_wayset_linear)
+    check_elevation_response(simple_wayset_linear, response)
 
 @pytest.mark.parametrize("db", ["slopes"], indirect=True)
 def test_wayset_elevation_unknown(ways_table, joined_ways_table):

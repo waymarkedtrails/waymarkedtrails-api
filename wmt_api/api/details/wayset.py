@@ -121,7 +121,8 @@ def elevation(conn: directive.connection, tables: directive.tables,
     sel = sa.select([sql.c.geom,
                      sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
                              'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                     sql.c.geom.ST_NPoints()])
+                     sql.c.geom.ST_NPoints(),
+                     gf.ST_Length(sql.c.geom)])
 
     res = conn.execute(sel).first()
 
@@ -129,6 +130,9 @@ def elevation(conn: directive.connection, tables: directive.tables,
         raise hug.HTTPNotFound()
 
     geom = to_shape(res[0])
+    # Computing length in Mercator is slightly off, correct it via the
+    # actual length.
+    dist_fac = res[1]/res[3]
 
     ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
 
@@ -148,17 +152,15 @@ def elevation(conn: directive.connection, tables: directive.tables,
         pos = array('d')
         if prev is not None:
             pos.append(prev[2][-1] + \
-                    Point(prev[0][-1], prev[1][-1]).distance(Point(*p)))
+                    Point(prev[0][-1], prev[1][-1]).distance(Point(*p)) * dist_fac)
         else:
             pos.append(0.0)
         for p in seg.coords[1:]:
-            pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)))
+            pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)) * dist_fac)
             xcoords.append(p[0])
             ycoords.append(p[1])
 
         ele.add_segment(xcoords, ycoords, pos)
         prev = (xcoords, ycoords, pos)
-
-    ele.elevation['length'] = float(res[1])
 
     return ele.as_dict()
