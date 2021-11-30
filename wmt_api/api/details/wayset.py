@@ -106,9 +106,12 @@ def geometry(conn: directive.connection, tables: directive.tables,
 @hug.get()
 @hug.cli()
 def elevation(conn: directive.connection, tables: directive.tables,
-              cfg: directive.api_config,
+              dem: directive.dem_file,
               oid: hug.types.number, segments: hug.types.in_range(1, 500) = 100):
     "Return the elevation profile of the way."
+
+    if dem is None:
+        raise hug.HTTPNotFound()
 
     w = tables.ways.data
     ws = tables.joined_ways.data
@@ -134,7 +137,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
     # actual length.
     dist_fac = res[1]/res[3]
 
-    ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
+    ele = RouteElevation(oid, dem, geom.bounds)
 
     if res[2] > 10000:
         geom = geom.simplify(res[2]/500, preserve_topology=False)

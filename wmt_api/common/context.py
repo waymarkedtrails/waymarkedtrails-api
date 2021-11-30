@@ -6,6 +6,7 @@
 import threading
 import importlib
 import logging
+from pathlib import Path
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
@@ -36,10 +37,11 @@ class ApiContext(object):
             raise
 
         try:
-            cls.api_config = importlib.import_module(f'wmt_api.config.{mapname}')
+            api_config = importlib.import_module('wmt_local_config.api')
+            cls.dem = Path(api_config.DEM_FILE)
         except ModuleNotFoundError:
-            log.error("Cannot find DB config for route map named '%s'.", mapname)
-            raise
+            log.warning("Cannot find API config. Elevation profiles not available.")
+            cls.dem = None
 
         cls.shield_factory = ShieldFactory(cls.db_config.ROUTES.symbols,
                                            cls.db_config.SYMBOLS)

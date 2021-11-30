@@ -104,9 +104,12 @@ def geometry(conn: directive.connection, tables: directive.tables,
 @hug.get()
 @hug.cli()
 def elevation(conn: directive.connection, tables: directive.tables,
-              cfg: directive.api_config,
+              dem: directive.dem_file,
               oid: hug.types.number, segments: hug.types.in_range(1, 500) = 100):
     "Return the elevation profile of the route."
+
+    if dem is None:
+        raise hug.HTTPNotFound()
 
     r = tables.routes.data
 
@@ -122,7 +125,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     if res is not None:
         geom = to_shape(res[0])
-        ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
+        ele = RouteElevation(oid, dem, geom.bounds)
 
         xcoord, ycoord = zip(*((p.x, p.y) for p in geom))
         geomlen = res[1]
@@ -149,7 +152,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
     # Computing length in Mercator is slightly off, correct it via the
     # actual length.
     dist_fac = res[1]/res[3]
-    ele = RouteElevation(oid, cfg.DEM_FILE, geom.bounds)
+    ele = RouteElevation(oid, dem, geom.bounds)
 
     if res[2] > 10000:
         geom = geom.simplify(res[2]/500, preserve_topology=False)

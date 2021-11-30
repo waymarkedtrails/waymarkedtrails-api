@@ -70,5 +70,5 @@ def db_config(default=False, context: ApiContext=None, **kwargs):
     return context.db_config
 
 @hug.directive()
-def api_config(default=False, context: ApiContext=None, **kwargs):
-    return context.api_config
+def dem_file(default=False, context: ApiContext=None, **kwargs):
+    return context.dem
