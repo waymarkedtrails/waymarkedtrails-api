@@ -24,7 +24,7 @@ def create_context(*args, **kwargs):
     return ApiContext()
 
 hug.API(__name__).http.add_middleware(hug.middleware.CORSMiddleware(hug.API(__name__)))
-hug.API(__name__).extend(base, '/api')
+hug.API(__name__).extend(base, '')
 
 if ApiContext.db_config.MAPTYPE == 'routes':
     from wmt_api.api.listings import routes as listings
@@ -37,9 +37,9 @@ elif ApiContext.db_config.MAPTYPE == 'slopes':
 else:
     raise RuntimeError(f"No API specified for map type '{ApiContext.db_config.MAPTYPE}'")
 
-hug.API(__name__).extend(listings, '/api/list')
-hug.API(__name__).extend(details, '/api/details')
-hug.API(__name__).extend(tiles, '/api/tiles')
+hug.API(__name__).extend(listings, '/list')
+hug.API(__name__).extend(details, '/details')
+hug.API(__name__).extend(tiles, '/tiles')
 
 application = __hug_wsgi__
 
