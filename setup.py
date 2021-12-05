@@ -24,5 +24,6 @@ setup(name='waymarkedtrails-api',
                 'wmt_api.api.tiles',
                 'wmt_api.output'
                ],
-      python_requires = ">=3.6",
+      scripts=['wmt-api-frontend.py'],
+      python_requires = ">=3.7",
       )
