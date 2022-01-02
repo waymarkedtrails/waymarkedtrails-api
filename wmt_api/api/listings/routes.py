@@ -122,7 +122,7 @@ def search(conn: directive.connection, tables: directive.tables,
         for o in conn.execute(sql):
             if minsim is None:
                 minsim = o['finsim']
-            elif o['finsim'] + 0.3 > minsim:
+            elif o['finsim'] - 0.3 > minsim:
                 break
             res.add_item(o, locale)
 
