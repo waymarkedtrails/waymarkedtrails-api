@@ -94,17 +94,35 @@ def search(conn: directive.connection, tables: directive.tables,
 
     # Second try: fuzzy matching of text
     if len(res) <= maxresults:
-        sim = sa.func.similarity(r.c.name, query)
-        sql = base.column(sim.label('sim'))\
-                  .order_by(sa.desc(sim))\
-                  .limit(maxresults - len(res)) \
-                  .where(sim > (0.5 if len(res) > 0 else 0.1))
+        remain = maxresults - len(res)
+        # Preselect matches by doing a word match on name and intnames.
+        primary_sim = r.c.name + sa.func.jsonb_path_query_array(r.c.intnames, '$.*', type_=sa.Text)
+        primary_sim = primary_sim.op('<->>>', return_type=sa.Float)(query)
+        primary_sim = primary_sim.label('sim')
 
-        maxsim = None
+        # Rerank by full match against main name
+        second_sim = r.c.name.op('<->', return_type=sa.Float)(query)
+        second_sim = second_sim.label('secsim')
+
+        inner = base.column(primary_sim)\
+                    .column(second_sim)\
+                    .order_by(primary_sim)\
+                    .limit(min(1100, remain * 10))\
+                    .alias('inner')
+
+        # Rerank by full match against main name
+        rematch_sim = (inner.c.sim + inner.c.secsim).label('finsim')
+
+        sql = sa.select(inner.c)\
+                .column(rematch_sim)\
+                .order_by(rematch_sim)\
+                .limit(remain)
+
+        minsim = None
         for o in conn.execute(sql):
-            if maxsim is None:
-                maxsim = o['sim']
-            elif maxsim > o['sim'] * 3:
+            if minsim is None:
+                minsim = o['finsim']
+            elif o['finsim'] + 0.3 > minsim:
                 break
             res.add_item(o, locale)
 
