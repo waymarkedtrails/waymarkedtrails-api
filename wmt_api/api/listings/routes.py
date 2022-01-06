@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2022 Sarah Hoffmann
 
 import hug
 from collections import OrderedDict
@@ -104,8 +104,7 @@ def search(conn: directive.connection, tables: directive.tables,
         second_sim = r.c.name.op('<->', return_type=sa.Float)(query)
         second_sim = second_sim.label('secsim')
 
-        inner = base.column(primary_sim)\
-                    .column(second_sim)\
+        inner = base.add_columns(primary_sim, second_sim)\
                     .order_by(primary_sim)\
                     .limit(min(1100, remain * 10))\
                     .alias('inner')
@@ -114,7 +113,7 @@ def search(conn: directive.connection, tables: directive.tables,
         rematch_sim = (inner.c.sim + inner.c.secsim).label('finsim')
 
         sql = sa.select(inner.c)\
-                .column(rematch_sim)\
+                .add_columns(rematch_sim)\
                 .order_by(rematch_sim)\
                 .limit(remain)
 

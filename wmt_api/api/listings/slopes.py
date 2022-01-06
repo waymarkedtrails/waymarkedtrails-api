@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2022 Sarah Hoffmann
 
 import hug
 from collections import OrderedDict
@@ -154,7 +154,7 @@ def search(conn: directive.connection, tables: directive.tables,
     for t, base in todos:
         if len(objs) <= maxresults:
             sim = sa.func.similarity(t.c.name, query)
-            res = base.column(sim.label('sim'))\
+            res = base.add_columns(sim.label('sim'))\
                     .where(t.c.name.notlike('(%'))\
                     .order_by(sa.desc(sim))\
                     .limit(maxresults - len(objs) + 1)

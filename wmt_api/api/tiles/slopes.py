@@ -1,3 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of the Waymarked Trails Map Project
+# Copyright (C) 2022 Sarah Hoffmann
+
 import hug
 import sqlalchemy as sa
 from io import StringIO
@@ -39,7 +44,7 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
     d = tables.ways.data
     ws = tables.joined_ways.data
 
-    wayset_id = sa.select([sa.func.array_agg(ws.c.id).label('ids')]).where(ws.c.child == d.c.id).as_scalar()
+    wayset_id = sa.select([sa.func.array_agg(ws.c.id).label('ids')]).where(ws.c.child == d.c.id).scalar_subquery()
 
     q = sa.select([sa.literal('wayset').label('type'),
                    d.c.id.label('way_id'),

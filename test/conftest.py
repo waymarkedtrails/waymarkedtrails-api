@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2022 Sarah Hoffmann
 
 import itertools
 import os
@@ -27,7 +27,7 @@ class TestContext(ApiContext):
 
     @classmethod
     def create_engine(cls):
-        cls.engine = create_engine(URL('postgresql', database=TEST_DATABASE),
+        cls.engine = create_engine(URL.create('postgresql', database=TEST_DATABASE),
                                    echo=False)
 
 def create_context(*args, **kwargs):
