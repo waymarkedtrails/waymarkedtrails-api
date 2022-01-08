@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2022 Sarah Hoffmann
 
 import xml.etree.ElementTree as ET
 
@@ -95,51 +95,74 @@ def test_geometry_geojson_unknown(relations_table, route_table, hierarchy_table)
     assert hug.test.get(api, '/geometry/geojson', oid=11).status == falcon.HTTP_NOT_FOUND
 
 
-def test_geometry_kml(route_geoms):
-    response = hug.test.get(api, '/geometry/kml', oid=route_geoms)
+class GoemetryParamsGPX:
+    endpoint = '/geometry/gpx'
+    root_tag = '{http://www.topografix.com/GPX/1/1}gpx'
 
-    assert response.status == falcon.HTTP_OK
-
-    root = ET.fromstring(response.data)
-    assert root.tag == '{http://www.opengis.net/kml/2.2}kml'
-
-
-def test_geometry_kml_locale_name(simple_route, language_names):
-    response = hug.test.get(api, '/geometry/kml', oid=simple_route,
-                            headers={'Accept-Language': language_names[0]})
-
-    assert response.status == falcon.HTTP_OK
-
-    root = ET.fromstring(response.data)
-    ele = root.find('{http://www.opengis.net/kml/2.2}Document')
-    assert ele
-    assert ele.findtext('{http://www.opengis.net/kml/2.2}name') == language_names[1]
+    @staticmethod
+    def get_name(response):
+        root = ET.fromstring(response.data)
+        ele = root.find('{http://www.topografix.com/GPX/1/1}metadata')
+        assert ele
+        return ele.findtext('{http://www.topografix.com/GPX/1/1}name')
 
 
-def test_geometry_kml_unknown(relations_table, route_table, hierarchy_table):
-    assert hug.test.get(api, '/geometry/kml', oid=11).status == falcon.HTTP_NOT_FOUND
+class GoemetryParamKML:
+    endpoint = '/geometry/kml'
+    root_tag = '{http://www.opengis.net/kml/2.2}kml'
+
+    @staticmethod
+    def get_name(response):
+        root = ET.fromstring(response.data)
+        ele = root.find('{http://www.opengis.net/kml/2.2}Document')
+        assert ele
+        return ele.findtext('{http://www.opengis.net/kml/2.2}name')
 
 
-def test_geometry_gpx(route_geoms):
-    response = hug.test.get(api, '/geometry/gpx', oid=route_geoms)
+@pytest.mark.parametrize('params', (GoemetryParamsGPX, GoemetryParamKML))
+class TestOtherGeometries:
+    @staticmethod
+    def test_geometry_other(route_geoms, params):
+        response = hug.test.get(api, params.endpoint, oid=route_geoms)
 
-    assert response.status == falcon.HTTP_OK
+        assert response.status == falcon.HTTP_OK
 
-    root = ET.fromstring(response.data)
-    assert root.tag == '{http://www.topografix.com/GPX/1/1}gpx'
-
-
-def test_geometry_gpx_locale_name(simple_route, language_names):
-    response = hug.test.get(api, '/geometry/gpx', oid=simple_route,
-                            headers={'Accept-Language': language_names[0]})
-
-    assert response.status == falcon.HTTP_OK
-
-    root = ET.fromstring(response.data)
-    ele = root.find('{http://www.topografix.com/GPX/1/1}metadata')
-    assert ele
-    assert ele.findtext('{http://www.topografix.com/GPX/1/1}name') == language_names[1]
+        root = ET.fromstring(response.data)
+        assert root.tag == params.root_tag
 
 
-def test_geometry_gpx_unknown(relations_table, route_table, hierarchy_table):
-    assert hug.test.get(api, '/geometry/gpx', oid=11).status == falcon.HTTP_NOT_FOUND
+    @staticmethod
+    def test_geometry_other_unknown(relations_table, route_table, hierarchy_table, params):
+        assert hug.test.get(api, params.endpoint, oid=11).status == falcon.HTTP_NOT_FOUND
+
+
+    @staticmethod
+    def test_geometry_kml_locale_name(simple_route, language_names, params):
+        response = hug.test.get(api, params.endpoint, oid=simple_route,
+                                headers={'Accept-Language': language_names[0]})
+
+        assert response.status == falcon.HTTP_OK
+        assert params.get_name(response) == language_names[1]
+
+
+    @staticmethod
+    def test_geometry_ref_name(conn, route_factory, hierarchy_table, params):
+        oid = route_factory(458374, 'LINESTRING(0 0, 100 100)',
+                            ref='34', tags={'this' : 'that', 'me': 'you'})
+
+        response = hug.test.get(api, params.endpoint, oid=oid)
+
+        assert response.status == falcon.HTTP_OK
+        assert params.get_name(response) == '34'
+
+
+
+    @staticmethod
+    def test_geometry_no_name(conn, route_factory, hierarchy_table, params):
+        oid = route_factory(458374, 'LINESTRING(0 0, 100 100)',
+                            tags={'this' : 'that', 'me': 'you'})
+
+        response = hug.test.get(api, params.endpoint, oid=oid)
+
+        assert response.status == falcon.HTTP_OK
+        assert params.get_name(response) == str(oid)
