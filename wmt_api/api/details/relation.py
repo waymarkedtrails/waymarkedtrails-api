@@ -31,31 +31,38 @@ def info(conn: directive.connection, tables: directive.tables,
     o = osmdata.relation.data
     h = tables.hierarchy.data
 
-    sql = sa.select(DetailedRouteItem.make_selectables(r, o))\
-                            .where(r.c.id==oid)\
-                            .where(o.c.id==oid)
+    fields = DetailedRouteItem.make_selectables(r, o)
+    fields.append(sa.func.jsonb_path_query_array(o.c.members,
+                                                 '$[*] ? (@.type == "R").id').label("relation_ids"))
 
-    row = conn.execute(sql).first()
+    sql = sa.select(fields).where(r.c.id==oid).where(o.c.id==oid)
+    row = conn.execute(sa.select(fields).where(r.c.id==oid).where(o.c.id==oid)).first()
 
     if row is None:
         raise hug.HTTPNotFound()
 
     res = DetailedRouteItem(row, locale, objtype='relation')
 
-    # add hierarchy where applicable
-    for rtype in ('subroutes', 'superroutes'):
-        if rtype == 'subroutes':
-            w = sa.select([h.c.child], distinct=True)\
-                    .where(h.c.parent == oid).where(h.c.depth == 2)
-        else:
-            w = sa.select([h.c.parent], distinct=True)\
-                     .where(h.c.child == oid).where(h.c.depth == 2)
-
+    # add subroutes where applicable
+    if row['relation_ids']:
         sections = conn.execute(sa.select(RouteItem.make_selectables(r))\
-                                 .where(r.c.id != oid).where(r.c.id.in_(w)))
+                                  .where(r.c.id.in_(row['relation_ids'])))
 
-        if sections.rowcount > 0:
-            res.add_extra_info(rtype, [RouteItem(s) for s in sections])
+        # Make sure subroutes appear in the order of the relation.
+        subs = { s['id']: RouteItem(s) for s in sections}
+        res.add_extra_info('subroutes', [subs[oid] for oid in row['relation_ids']
+                                         if oid in subs])
+
+
+    # add superroutes where applicable
+    w = sa.select([h.c.parent], distinct=True)\
+             .where(h.c.child == oid).where(h.c.depth == 2)
+
+    sections = conn.execute(sa.select(RouteItem.make_selectables(r))\
+                             .where(r.c.id != oid).where(r.c.id.in_(w)))
+
+    if sections.rowcount > 0:
+        res.add_extra_info('superroutes', [RouteItem(s) for s in sections])
 
     return res
 
