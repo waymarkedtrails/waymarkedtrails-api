@@ -43,7 +43,7 @@ class Bbox(collections.UserList):
 
 @hug.type(extend=hug.types.text)
 def bbox_type(value):
-    "A bounding box of the form: `x1,y2,x2,y2`."
+    "A bounding box of the form: `x1,y1,x2,y2`."
     return Bbox(value)
 
 
