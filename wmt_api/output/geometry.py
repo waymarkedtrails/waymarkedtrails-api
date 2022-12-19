@@ -72,6 +72,10 @@ class RouteGeometry(object):
 
         # and the geometry
         trk = ET.SubElement(root, 'trk')
+        
+        # add name to trk segment for Garmin devices
+        ET.SubElement(trk,'name').text = name
+        
         geom = to_shape(self.obj.geom)
 
         if geom.geom_type == 'LineString':
