@@ -68,7 +68,7 @@ Then run the API in development mode:
 
 To set up uwsgi for production, please consult its documentation.
 
-_Warning:_ the code is not compatible with ujosn. If you get an error message
+_Warning:_ the code is not compatible with ujson. If you get an error message
 
     TypeError: 'Type[ujson] is not Serializable'
 
