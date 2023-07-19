@@ -68,6 +68,16 @@ Then run the API in development mode:
 
 To set up uwsgi for production, please consult its documentation.
 
+_Warning:_ the code is not compatible with ujosn. If you get an error message
+
+    TypeError: 'Type[ujson] is not Serializable'
+
+then either make sure that `ujson` is not installed in your virtualenv or
+force hug to use the built-in json library by setting the environment variable
+`HUG_USE_UJSON` to the empty value:
+
+    export HUG_USE_UJSON=
+
 License
 =======
 
