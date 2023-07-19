@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2022 Sarah Hoffmann
-
+# Copyright (C) 2022-2023 Sarah Hoffmann
 import hug
 import sqlalchemy as sa
 from io import StringIO
@@ -27,13 +26,13 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
 
     # Route ways
     d = tables.style.data
-    q = sa.select([sa.literal('way').label('type'),
-                   d.c.sources.label('top_relations'),
-                   d.c.symbol.label('shields'),
-                   d.c.novice, d.c.easy, d.c.intermediate, d.c.advanced,
-                   d.c.expert, d.c.extreme, d.c.freeride, d.c.downhill,
-                   d.c.nordic, d.c.skitour, d.c.sled, d.c.hike, d.c.sleigh,
-                   d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry')])\
+    q = sa.select(sa.literal('way').label('type'),
+                  d.c.sources.label('top_relations'),
+                  d.c.symbol.label('shields'),
+                  d.c.novice, d.c.easy, d.c.intermediate, d.c.advanced,
+                  d.c.expert, d.c.extreme, d.c.freeride, d.c.downhill,
+                  d.c.nordic, d.c.skitour, d.c.sled, d.c.hike, d.c.sleigh,
+                  d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
           .where(d.c.geom.intersects(b.as_sql()))\
           .order_by(d.c.id)
 
@@ -44,14 +43,14 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
     d = tables.ways.data
     ws = tables.joined_ways.data
 
-    wayset_id = sa.select([sa.func.array_agg(ws.c.id).label('ids')]).where(ws.c.child == d.c.id).scalar_subquery()
+    wayset_id = sa.select(sa.func.array_agg(ws.c.id).label('ids')).where(ws.c.child == d.c.id).scalar_subquery()
 
-    q = sa.select([sa.literal('wayset').label('type'),
-                   d.c.id.label('way_id'),
-                   wayset_id.label('wayset_ids'),
-                   d.c.symbol.label('shield'),
-                   d.c.difficulty, d.c.piste, # TODO: take apart
-                   d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry')])\
+    q = sa.select(sa.literal('wayset').label('type'),
+                  d.c.id.label('way_id'),
+                  wayset_id.label('wayset_ids'),
+                  d.c.symbol.label('shield'),
+                  d.c.difficulty, d.c.piste, # TODO: take apart
+                  d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
           .where(d.c.geom.intersects(b.as_sql()))\
           .order_by(d.c.id)
 

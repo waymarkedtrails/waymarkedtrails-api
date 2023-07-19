@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2022 Sarah Hoffmann
+# Copyright (C) 2022-2023 Sarah Hoffmann
 
 import hug
 from collections import OrderedDict
@@ -28,12 +28,12 @@ def by_area(conn: directive.connection, tables: directive.tables,
     s = tables.segments.data
     h = tables.hierarchy.data
 
-    rels = sa.select([sa.func.unnest(s.c.rels).label('rel')], distinct=True)\
-                .where(s.c.geom.ST_Intersects(bbox.as_sql())).alias()
+    rels = sa.select(sa.func.unnest(s.c.rels).label('rel')).distinct()\
+                .where(s.c.geom.ST_Intersects(bbox.as_sql())).subquery()
 
-    sql = sa.select(RouteItem.make_selectables(r))\
+    sql = sa.select(*RouteItem.make_selectables(r))\
                .where(r.c.top)\
-               .where(sa.or_(r.c.id.in_(sa.select([h.c.parent], distinct=True)
+               .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
@@ -54,7 +54,7 @@ def by_ids(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sql = sa.select(RouteItem.make_selectables(r))\
+    sql = sa.select(*RouteItem.make_selectables(r))\
             .where(r.c.id.in_(relations))\
             .order_by(sa.desc(r.c.level), r.c.name)
 
@@ -78,7 +78,7 @@ def search(conn: directive.connection, tables: directive.tables,
     res = RouteList(query=query, page=page)
 
     r = tables.routes.data
-    base = sa.select(RouteItem.make_selectables(r))
+    base = sa.select(*RouteItem.make_selectables(r))
 
     # First try: exact match of ref
     sql = base.where(sa.func.lower(r.c.ref) == query.lower()).limit(maxresults+1)
@@ -120,8 +120,8 @@ def search(conn: directive.connection, tables: directive.tables,
         minsim = None
         for o in conn.execute(sql):
             if minsim is None:
-                minsim = o['finsim']
-            elif o['finsim'] - 0.3 > minsim:
+                minsim = o.finsim
+            elif o.finsim - 0.3 > minsim:
                 break
             res.add_item(o, locale)
 
@@ -142,11 +142,11 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sql = sa.select([r.c.id, r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
+    sql = sa.select(r.c.id, r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
               .where(r.c.id.in_(relations)).alias()
 
-    sql = sa.select([sa.literal("relation").label('type'),
-                     sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+    sql = sa.select(sa.literal("relation").label('type'),
+                    sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
             .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
     return conn.execute(sql)

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 """
 Details API functions for route relations (from the route table).
 """
@@ -35,8 +35,9 @@ def info(conn: directive.connection, tables: directive.tables,
     fields.append(sa.func.jsonb_path_query_array(o.c.members,
                                                  '$[*] ? (@.type == "R").id').label("relation_ids"))
 
-    sql = sa.select(fields).where(r.c.id==oid).where(o.c.id==oid)
-    row = conn.execute(sa.select(fields).where(r.c.id==oid).where(o.c.id==oid)).first()
+    row = conn.execute(sa.select(*fields)
+                         .where(r.c.id == oid)
+                         .join(o, o.c.id == r.c.id)).first()
 
     if row is None:
         raise hug.HTTPNotFound()
@@ -44,21 +45,21 @@ def info(conn: directive.connection, tables: directive.tables,
     res = DetailedRouteItem(row, locale, objtype='relation')
 
     # add subroutes where applicable
-    if row['relation_ids']:
-        sections = conn.execute(sa.select(RouteItem.make_selectables(r))\
-                                  .where(r.c.id.in_(row['relation_ids'])))
+    if row.relation_ids:
+        sections = conn.execute(sa.select(*RouteItem.make_selectables(r))\
+                                  .where(r.c.id.in_(row.relation_ids)))
 
         # Make sure subroutes appear in the order of the relation.
         subs = { s['id']: RouteItem(s) for s in sections}
-        res.add_extra_info('subroutes', [subs[oid] for oid in row['relation_ids']
+        res.add_extra_info('subroutes', [subs[oid] for oid in row.relation_ids
                                          if oid in subs])
 
 
     # add superroutes where applicable
-    w = sa.select([h.c.parent], distinct=True)\
+    w = sa.select(h.c.parent).distinct()\
              .where(h.c.child == oid).where(h.c.depth == 2)
 
-    sections = conn.execute(sa.select(RouteItem.make_selectables(r))\
+    sections = conn.execute(sa.select(*RouteItem.make_selectables(r))\
                              .where(r.c.id != oid).where(r.c.id.in_(w)))
 
     if sections.rowcount > 0:
@@ -75,7 +76,7 @@ def wikilink(conn: directive.connection, osmdata: directive.osmdata,
     r = osmdata.relation.data
 
     return get_wikipedia_link(
-             conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
+             conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
              locale)
 
 @hug.get('/geometry/{geomtype}', output=format_object)
@@ -100,7 +101,7 @@ def geometry(conn: directive.connection, tables: directive.tables,
 
     rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
 
-    obj = conn.execute(sa.select(rows).where(r.c.id==oid)).first()
+    obj = conn.execute(sa.select(*rows).where(r.c.id == oid)).first()
 
     if obj is None:
         raise hug.HTTPNotFound()
@@ -120,12 +121,12 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     r = tables.routes.data
 
-    sel = sa.select([gf.ST_Points(gf.ST_Collect(
+    sel = sa.select(gf.ST_Points(gf.ST_Collect(
                          gf.ST_PointN(r.c.geom, 1),
                          gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
-                     sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
+                    sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
                            'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]')
-                    ]).where(r.c.id == oid)\
+                    ).where(r.c.id == oid)\
             .where(r.c.geom.ST_GeometryType() == 'ST_LineString')
 
     res = conn.execute(sel).first()
@@ -134,7 +135,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
         geom = to_shape(res[0])
         ele = RouteElevation(oid, dem, geom.bounds)
 
-        xcoord, ycoord = zip(*((p.x, p.y) for p in geom))
+        xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
         geomlen = res[1]
         pos = [geomlen*i/float(segments) for i in range(segments + 1)]
 
@@ -143,11 +144,11 @@ def elevation(conn: directive.connection, tables: directive.tables,
         return ele.as_dict()
 
     # special treatment for multilinestrings
-    sel = sa.select([r.c.geom,
-                     sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
+    sel = sa.select(r.c.geom,
+                    sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
                              'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                     r.c.geom.ST_NPoints(),
-                     gf.ST_Length(r.c.geom)])\
+                    r.c.geom.ST_NPoints(),
+                    gf.ST_Length(r.c.geom))\
                 .where(r.c.id == oid)
 
     res = conn.execute(sel).first()
@@ -167,11 +168,11 @@ def elevation(conn: directive.connection, tables: directive.tables,
         geom = geom.simplify(res[2]/1000, preserve_topology=False)
 
     prev = None
-    for seg in geom:
+    for seg in geom.geoms:
         p = seg.coords[0]
-        xcoords = array('d', [p[0]])
-        ycoords = array('d', [p[1]])
-        pos = array('d')
+        xcoords = [p[0]]
+        ycoords = [p[1]]
+        pos = []
         if prev is not None:
             pos.append(prev[2][-1] + \
                     Point(prev[0][-1], prev[1][-1]).distance(Point(*p)) * dist_fac)

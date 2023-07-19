@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 
 import hug
 from slugify import slugify
@@ -72,16 +72,18 @@ class RouteGeometry(object):
 
         # and the geometry
         trk = ET.SubElement(root, 'trk')
-        
+
         # add name to trk segment for Garmin devices
         ET.SubElement(trk,'name').text = name
-        
+
         geom = to_shape(self.obj.geom)
 
         if geom.geom_type == 'LineString':
-            geom = (geom,)
+            geom_list = (geom,)
+        else:
+            geom_list = geom.geoms
 
-        for line in geom:
+        for line in geom_list:
             seg = ET.SubElement(trk, 'trkseg')
             for pt in line.coords:
                 ET.SubElement(seg, 'trkpt', lat=f'{pt[1]:.7f}', lon=f'{pt[0]:.7f}')
@@ -120,9 +122,11 @@ class RouteGeometry(object):
         geom = to_shape(self.obj.geom)
 
         if geom.geom_type == 'LineString':
-            geom = (geom,)
+            geom_list = (geom,)
+        else:
+            geom_list = geom.geoms
 
-        for line in geom:
+        for line in geom_list:
             linestring = ET.SubElement(multi, 'LineString')
             ET.SubElement(linestring, 'coordinates').text = \
               '\n'.join((f'{pt[0]:.7f},{pt[1]:.7f}' for pt in line.coords))

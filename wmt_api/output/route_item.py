@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 
 from collections import OrderedDict
 from sqlalchemy import func
@@ -30,44 +30,42 @@ class RouteItem(JsonSerializable):
         return self.content
 
     def _set_row_data(self, row, locales, objtype):
-        self.content['type'] = row['type'] if 'type' in row else objtype
+        self.content['type'] = row._mapping.get('type', objtype)
 
         for e in ('id', 'ref'):
             self._add_optional(e, row, e)
 
         for l in locales:
-            if l in row['intnames']:
-                self.content['name'] = row['intnames'][l]
-                if self.content['name'] != row['name']:
-                    self.content['local_name'] = row['name']
+            if l in row.intnames:
+                self.content['name'] = row.intnames[l]
+                if self.content['name'] != row.name:
+                    self.content['local_name'] = row.name
                 break
         else:
             self._add_optional('name', row, 'name')
 
         self.content['group'] = self._get_network(row)
         self._add_optional('symbol_description', row, None,
-                           row['intnames'].get('symbol'))
+                           row.intnames.get('symbol'))
 
         self._add_optional('itinerary', row, 'itinerary')
         self._add_optional('symbol_id', row, 'symbol')
 
     def _add_optional(self, name, row, key, default=None):
-        if key is not None and key in row and row[key]:
-            self.content[name] = row[key]
-        elif default is not None:
-            self.content[name] = default
+        value = row._mapping.get(key, None)
+        self.content[name] = value if value is not None else default
 
     def _get_network(self, row):
-        if 'network' in row and row['network'] is not None:
-            return row['network']
+        mapping = row._mapping
+        network = mapping.get('network', None)
+        if network is not None:
+            return network
 
-        if 'level' in row:
-            return Network.from_int(row['level']).name
+        level = mapping.get('level', None)
+        if level is not None:
+            return Network.from_int(level).name
 
-        if 'piste' in row:
-            return row['piste']
-
-        return None
+        return mapping.get('piste', None)
 
 
 class DetailedRouteItem(RouteItem):
@@ -90,9 +88,9 @@ class DetailedRouteItem(RouteItem):
         self._add_details(row, locales)
 
     def _add_details(self, row, locales):
-        loctags = TagStore.make_localized(row['tags'], locales)
+        loctags = TagStore.make_localized(row.tags, locales)
 
-        self.content['mapped_length'] = int(row['length'])
+        self.content['mapped_length'] = int(row.length)
         self._add_optional('official_length', row, None,
                            loctags.get_length('distance', 'length', unit='m'))
 
@@ -102,8 +100,8 @@ class DetailedRouteItem(RouteItem):
         self._add_optional('url', row, None, loctags.get_url())
         self._add_optional('wikipedia', row, None, loctags.get_wikipedia_tags() or None)
 
-        self.content['bbox'] = to_shape(row['bbox']).bounds
-        self.content['tags'] = row['tags']
+        self.content['bbox'] = to_shape(row.bbox).bounds
+        self.content['tags'] = row.tags
 
     def add_extra_info(self, key, value):
         self.content[key] = value

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 
 from collections import OrderedDict
 
@@ -31,22 +31,23 @@ class NodeItem(JsonSerializable):
             self.content[key]  = value
 
     def add_row_data(self, row, locales):
-        loctags = TagStore.make_localized(row['tags'], locales)
+        loctags = TagStore.make_localized(row.tags, locales)
 
         if 'name' in loctags:
             self.content['name'] = loctags['name']
 
-            if row['name'] and row['name'] != self.content['name']:
-                self.content['local_name'] = row['name']
+            if row.name and row.name != self.content['name']:
+                self.content['local_name'] = row.name
 
-        self.add_if('ele', row['ele'])
+        self.add_if('ele', row.ele)
 
         for tag in ('ref', 'operator', 'description', 'note'):
             self.add_if(tag, loctags.get(tag))
 
         self.add_if('image', loctags.get_url(keys=['image']))
 
-        for key in ('tags', 'x', 'y'):
-            self.content[key] = row[key]
+        self.content['tags'] = row.tags
+        self.content['x'] = row.x
+        self.content['y'] = row.y
 
         return self

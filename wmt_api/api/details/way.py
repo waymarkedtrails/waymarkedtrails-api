@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 """
 Details API functions for simple ways (from the way table).
 """
@@ -30,9 +30,9 @@ def info(conn: directive.connection, tables: directive.tables,
     r = tables.ways.data
     o = osmdata.way.data
 
-    sql = sa.select(DetailedRouteItem.make_selectables(r, o))\
-                            .where(r.c.id==oid)\
-                            .where(o.c.id==oid)
+    sql = sa.select(*DetailedRouteItem.make_selectables(r, o))\
+                            .where(r.c.id == oid)\
+                            .join(o, o.c.id == r.c.id)
 
     row = conn.execute(sql).first()
 
@@ -51,7 +51,7 @@ def wikilink(conn: directive.connection, osmdata: directive.osmdata,
     r = osmdata.way.data
 
     return get_wikipedia_link(
-             conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
+             conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
              locale)
 
 @hug.get('/geometry/{geomtype}', output=format_object)
@@ -76,7 +76,7 @@ def geometry(conn: directive.connection, tables: directive.tables,
 
     rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
 
-    obj = conn.execute(sa.select(rows).where(r.c.id==oid)).first()
+    obj = conn.execute(sa.select(*rows).where(r.c.id == oid)).first()
 
     if obj is None:
         raise hug.HTTPNotFound()
@@ -96,12 +96,12 @@ def elevation(conn: directive.connection, tables: directive.tables,
 
     r = tables.ways.data
 
-    sel = sa.select([gf.ST_Points(gf.ST_Collect(
+    sel = sa.select(gf.ST_Points(gf.ST_Collect(
                          gf.ST_PointN(r.c.geom, 1),
                          gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
-                     sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
+                    sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
                            'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]')
-                    ]).where(r.c.id == oid)
+                   ).where(r.c.id == oid)
 
     res = conn.execute(sel).first()
 
@@ -111,7 +111,7 @@ def elevation(conn: directive.connection, tables: directive.tables,
     geom = to_shape(res[0])
     ele = RouteElevation(oid, dem, geom.bounds)
 
-    xcoord, ycoord = zip(*((p.x, p.y) for p in geom))
+    xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
     geomlen = res[1]
     pos = [geomlen*i/float(segments) for i in range(segments + 1)]
 

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 
 import json
 from io import StringIO
@@ -23,11 +23,11 @@ def format_as_geojson(data, request=None, response=None):
     sep = ''
     for d in data:
         outstr.write(f'{sep}{{"type": "Feature", "geometry" : {d.geometry}')
-        if 'id' in d.keys():
+        if 'id' in d._fields:
             outstr.write(f', "id" : "{d.id}"')
-        if len(d.keys()) > 2:
+        if len(d._fields) > 2:
             outstr.write(', "properties" : ')
-            json.dump({ k: d[k] for k in d.keys() if k not in ('id', 'geometry')},
+            json.dump({k: v for k, v in d._mapping.items() if k not in ('id', 'geometry')},
                       outstr)
         outstr.write('}')
         sep = ','

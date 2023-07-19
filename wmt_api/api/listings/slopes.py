@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2022 Sarah Hoffmann
+# Copyright (C) 2022-2023 Sarah Hoffmann
 
 import hug
 from collections import OrderedDict
@@ -28,14 +28,14 @@ def by_area(conn: directive.connection, tables: directive.tables,
     s = tables.segments.data
     h = tables.hierarchy.data
 
-    rels = sa.select([sa.func.unnest(s.c.rels).label('rel')], distinct=True)\
+    rels = sa.select(sa.func.unnest(s.c.rels).label('rel')).distinct()\
                 .where(s.c.geom.ST_Intersects(bbox.as_sql())).alias()
 
     sels = RouteItem.make_selectables(r)
     sels.append(sa.literal('relation').label('type'))
-    sql = sa.select(sels)\
+    sql = sa.select(*sels)\
                .where(r.c.top)\
-               .where(sa.or_(r.c.id.in_(sa.select([h.c.parent], distinct=True)
+               .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
                                    .where(h.c.child == rels.c.rel)),
                              r.c.id.in_(rels)
                      ))\
@@ -49,10 +49,10 @@ def by_area(conn: directive.connection, tables: directive.tables,
 
     w = tables.ways.data
     ws = tables.joined_ways.data
-    sql = sa.select([sa.func.coalesce(ws.c.id, w.c.id).label('id'),
-                     sa.case([(ws.c.id == None, 'way')], else_='wayset').label('type'),
-                     w.c.name, w.c.intnames, w.c.symbol,
-                     w.c.piste], distinct=True)\
+    sql = sa.select(sa.func.coalesce(ws.c.id, w.c.id).label('id'),
+                    sa.case((ws.c.id == None, 'way'), else_='wayset').label('type'),
+                    w.c.name, w.c.intnames, w.c.symbol,
+                    w.c.piste).distinct()\
             .select_from(w.outerjoin(ws, w.c.id == ws.c.child))\
             .where(w.c.geom.ST_Intersects(bbox.as_sql()))\
             .order_by(w.c.name)\
@@ -78,7 +78,7 @@ def by_ids(conn: directive.connection, tables: directive.tables,
         sels = RouteItem.make_selectables(r)
         sels.append(sa.literal('relation').label('type'))
 
-        sql = sa.select(sels).where(r.c.id.in_(relations))
+        sql = sa.select(*sels).where(r.c.id.in_(relations))
 
         res.add_items(conn.execute(sql), locale)
 
@@ -88,7 +88,7 @@ def by_ids(conn: directive.connection, tables: directive.tables,
         sels = RouteItem.make_selectables(w)
         sels.append(sa.literal('way').label('type'))
 
-        sql = sa.select(sels).where(w.c.id.in_(ways))
+        sql = sa.select(*sels).where(w.c.id.in_(ways))
 
         res.add_items(conn.execute(sql), locale)
 
@@ -98,7 +98,7 @@ def by_ids(conn: directive.connection, tables: directive.tables,
         sels = RouteItem.make_selectables(w)
         sels.append(sa.literal('wayset').label('type'))
 
-        sql = sa.select(sels).where(w.c.id.in_(waysets))
+        sql = sa.select(*sels).where(w.c.id.in_(waysets))
 
         res.add_items(conn.execute(sql), locale)
 
@@ -120,14 +120,14 @@ def search(conn: directive.connection, tables: directive.tables,
     r = tables.routes.data
     sels = RouteItem.make_selectables(r)
     sels.append(sa.literal('relation').label('type'))
-    rbase = sa.select(sels)
+    rbase = sa.select(*sels)
 
     w = tables.ways.data
     ws = tables.joined_ways.data
-    wbase = sa.select([sa.func.coalesce(ws.c.id, w.c.id).label('id'),
-                         sa.case([(ws.c.id == None, 'way')], else_='wayset').label('type'),
-                         w.c.name, w.c.intnames, w.c.symbol,
-                         w.c.piste], distinct=True)\
+    wbase = sa.select(sa.func.coalesce(ws.c.id, w.c.id).label('id'),
+                      sa.case((ws.c.id == None, 'way'), else_='wayset').label('type'),
+                      w.c.name, w.c.intnames, w.c.symbol,
+                      w.c.piste).distinct()\
               .select_from(w.outerjoin(ws, w.c.id == ws.c.child))
 
     todos = ((r, rbase), (w, wbase))
@@ -166,8 +166,8 @@ def search(conn: directive.connection, tables: directive.tables,
             maxsim = None
             for r in conn.execute(res):
                 if maxsim is None:
-                    maxsim = r['sim']
-                elif maxsim > r['sim'] * 3:
+                    maxsim = r.sim
+                elif maxsim > r.sim * 3:
                     break
                 objs.add_item(r, locale)
 
@@ -187,11 +187,11 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     if relations:
         r = tables.routes.data
-        sql = sa.select([sa.literal("relation").label('type'), r.c.id,
-                         r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
+        sql = sa.select(sa.literal("relation").label('type'), r.c.id,
+                        r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
                 .where(r.c.id.in_(relations)).alias()
 
-        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select(sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):
@@ -199,11 +199,11 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     if ways:
         w = tables.ways.data
-        sql = sa.select([sa.literal("way").label('type'), w.c.id,
-                         w.c.geom.ST_Intersection(bbox.as_sql()).label('geometry')])\
+        sql = sa.select(sa.literal("way").label('type'), w.c.id,
+                        w.c.geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
                 .where(w.c.id.in_(ways)).alias()
 
-        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select(sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):
@@ -211,15 +211,15 @@ def segments(conn: directive.connection, tables: directive.tables,
 
     if waysets:
         ws = tables.joined_ways.data
-        sql = sa.select([sa.literal("wayset").label('type'),
-                         ws.c.id.label('id'),
-                         sa.func.ST_CollectionHomogenize(
+        sql = sa.select(sa.literal("wayset").label('type'),
+                        ws.c.id.label('id'),
+                        sa.func.ST_CollectionHomogenize(
                              sa.func.ST_Collect(w.c.geom.ST_Intersection(bbox.as_sql()))).label('geometry')
-                        ])\
+                       )\
                 .select_from(w.join(ws, w.c.id == ws.c.child))\
                 .where(ws.c.id.in_(waysets)).group_by(ws.c.id).alias()
 
-        sql = sa.select([sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry')])\
+        sql = sa.select(sql.c.type, sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         for x in conn.execute(sql):

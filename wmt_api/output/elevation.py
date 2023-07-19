@@ -2,7 +2,7 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2012-2013 Espen Oldeman Lund
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 
 from math import ceil, fabs
 from collections import OrderedDict
@@ -121,6 +121,8 @@ class RouteElevation:
                             if diff > accuracy:
                                 accumulated_ascent += diff
                             former_height = current_height
+                        else:
+                            former_height = min(former_height, current_height)
 
         if last_valid is None:
             # looks like the route is completely within a void
@@ -140,8 +142,8 @@ class RouteElevation:
         """ Add a continuous piece of route to the elevation outout.
         """
         # Turn these into arrays of x & y coords
-        xi = numpy.array(xcoord, dtype=numpy.float)
-        yi = numpy.array(ycoord, dtype=numpy.float)
+        xi = numpy.array(xcoord, dtype=float)
+        yi = numpy.array(ycoord, dtype=float)
 
         # Now, we'll set points outside the boundaries to lie along an edge
         xi[xi > self.xmax] = self.xmax

@@ -76,5 +76,5 @@ class ApiContext(object):
         """
         if not hasattr(self.thread_data, 'conn'):
             self.thread_data.conn = \
-                self.engine.connect().execution_options(autocommit=True)
+                self.engine.connect().execution_options(isolation_level="AUTOCOMMIT")
         return self.thread_data.conn

@@ -1,13 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2022 Sarah Hoffmann
+# Copyright (C) 2022-2023 Sarah Hoffmann
 
 import itertools
 import os
 
 import pytest
 import hug
+import sqlalchemy as sa
 from sqlalchemy import create_engine
 from sqlalchemy.engine.url import URL
 
@@ -43,9 +44,9 @@ def db(request):
     TestContext.init_globals(request.param)
 
     with TestContext.engine.begin() as conn:
-        conn.execute("CREATE EXTENSION postgis")
-        conn.execute(f"CREATE SCHEMA {TestContext.tables.site_config.DB_SCHEMA}")
-        conn.execute('CREATE EXTENSION pg_trgm')
+        conn.execute(sa.text('CREATE EXTENSION postgis'))
+        conn.execute(sa.text(f"CREATE SCHEMA {TestContext.tables.site_config.DB_SCHEMA}"))
+        conn.execute(sa.text('CREATE EXTENSION pg_trgm'))
 
     yield TestContext.engine
 
@@ -55,7 +56,7 @@ def db(request):
 
 @pytest.fixture
 def conn(db):
-    with db.connect().execution_options(autocommit=True) as conn:
+    with db.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         yield conn
 
 @pytest.fixture
@@ -63,23 +64,23 @@ def mapname(db):
     return TestContext.mapname
 
 @pytest.fixture
-def status_table(conn):
-    TestContext.tables.status.create(conn)
+def status_table(db):
+    TestContext.tables.status.create(db)
     return TestContext.tables.status
 
 @pytest.fixture
-def relations_table(conn):
-    TestContext.tables.osmdata.relation.create(conn)
+def relations_table(db):
+    TestContext.tables.osmdata.relation.create(db)
     return TestContext.tables.osmdata.relation
 
 @pytest.fixture
-def hierarchy_table(conn):
-    TestContext.tables.tables.hierarchy.create(conn)
+def hierarchy_table(db):
+    TestContext.tables.tables.hierarchy.create(db)
     return TestContext.tables.tables.hierarchy
 
 @pytest.fixture
-def route_table(conn):
-    TestContext.tables.tables.routes.data.create(conn)
+def route_table(db):
+    TestContext.tables.tables.routes.data.create(db)
     return TestContext.tables.tables.routes
 
 @pytest.fixture
@@ -100,25 +101,25 @@ def route_factory(conn, relations_table, route_table):
     return factory
 
 @pytest.fixture
-def osm_ways_table(conn):
-    TestContext.tables.osmdata.way.create(conn)
+def osm_ways_table(db):
+    TestContext.tables.osmdata.way.create(db)
     return TestContext.tables.osmdata.way
 
 @pytest.fixture
-def osm_nodes_table(conn):
-    TestContext.tables.osmdata.node.create(conn)
+def osm_nodes_table(db):
+    TestContext.tables.osmdata.node.create(db)
     return TestContext.tables.osmdata.node
 
 @pytest.fixture
-def ways_table(conn):
+def ways_table(db):
     if 'ways' in TestContext.tables.tables:
-        TestContext.tables.tables.ways.data.create(conn)
+        TestContext.tables.tables.ways.data.create(db)
         return TestContext.tables.tables.ways
 
 @pytest.fixture
-def joined_ways_table(conn):
+def joined_ways_table(db):
     if 'joined_ways' in TestContext.tables.tables:
-        TestContext.tables.tables.joined_ways.data.create(conn)
+        TestContext.tables.tables.joined_ways.data.create(db)
         return TestContext.tables.tables.joined_ways
 
 @pytest.fixture
@@ -148,8 +149,8 @@ def joined_way_factory(conn, joined_ways_table):
     return None if joined_ways_table is None else factory
 
 @pytest.fixture
-def segments_table(conn):
-    TestContext.tables.tables.segments.data.create(conn)
+def segments_table(db):
+    TestContext.tables.tables.segments.data.create(db)
     return TestContext.tables.tables.segments
 
 @pytest.fixture
@@ -164,8 +165,8 @@ def segment_factory(conn, segments_table):
     return factory
 
 @pytest.fixture
-def style_table(conn):
-    TestContext.tables.tables.style.data.create(conn)
+def style_table(db):
+    TestContext.tables.tables.style.data.create(db)
     return TestContext.tables.tables.style
 
 @pytest.fixture
@@ -180,8 +181,8 @@ def style_factory(conn, style_table):
     return factory
 
 @pytest.fixture
-def guidepost_table(conn):
-    TestContext.tables.tables.guideposts.data.create(conn)
+def guidepost_table(db):
+    TestContext.tables.tables.guideposts.data.create(db)
     return TestContext.tables.tables.guideposts
 
 @pytest.fixture

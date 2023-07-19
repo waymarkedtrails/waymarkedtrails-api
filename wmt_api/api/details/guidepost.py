@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 """
 Details API functions for guide posts.
 """
@@ -22,9 +22,9 @@ def info(conn: directive.connection, tables: directive.tables,
     r = tables.guideposts.data
     o = osmdata.node.data
 
-    sql = sa.select(NodeItem.make_selectables(r, o))\
+    sql = sa.select(*NodeItem.make_selectables(r, o))\
             .where(r.c.id == oid)\
-            .where(o.c.id == oid)
+            .join(o, o.c.id == r.c.id)
 
     res = conn.execute(sql).first()
 

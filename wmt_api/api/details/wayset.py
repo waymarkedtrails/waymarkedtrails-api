@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2020-2023 Sarah Hoffmann
 """
 Details API functions for joined ways (from the way table).
 """
@@ -32,22 +32,25 @@ def info(conn: directive.connection, tables: directive.tables,
     ws = tables.joined_ways.data
 
     w = tables.ways.data
-    geom = sa.select([gf.ST_Collect(w.c.geom).label('geom')])\
+    geom = sa.select(gf.ST_Collect(w.c.geom).label('geom'))\
+             .join(ws, w.c.id == ws.c.child)\
              .where(ws.c.id == oid)\
-             .where(w.c.id == ws.c.child)\
              .alias()
 
     fields = [r.c.id, r.c.name, r.c.intnames, r.c.symbol, r.c.ref,
               r.c.piste, o.c.tags, geom]
 
-    sql = sa.select(fields).where(r.c.id==oid).where(o.c.id==oid).alias()
+    sql = sa.select(*fields)\
+            .where(r.c.id == oid)\
+            .join(o, o.c.id == r.c.id)\
+            .subquery()
 
-    fields = list(sql.c)
-    fields.append(sa.func.ST_Length2dSpheroid(gf.ST_Transform(sql.c.geom, 4326),
-                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]').label("length"))
-    fields.append(sql.c.geom.ST_Envelope().label('bbox'))
+    outer = sa.select(sql,
+                      sa.func.ST_Length2dSpheroid(gf.ST_Transform(sql.c.geom, 4326),
+                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]').label("length"),
+                      sql.c.geom.ST_Envelope().label('bbox'))
 
-    row = conn.execute(sa.select(fields)).first()
+    row = conn.execute(outer).first()
 
     if row is None:
         raise hug.HTTPNotFound()
@@ -64,7 +67,7 @@ def wikilink(conn: directive.connection, osmdata: directive.osmdata,
     r = osmdata.way.data
 
     return get_wikipedia_link(
-             conn.scalar(sa.select([r.c.tags]).where(r.c.id == oid)),
+             conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
              locale)
 
 @hug.get('/geometry/{geomtype}', output=format_object)
@@ -90,7 +93,7 @@ def geometry(conn: directive.connection, tables: directive.tables,
     else:
         geom = geom.ST_Transform(4326)
 
-    sql = sa.select([w.c.name, w.c.intnames, w.c.ref, ws.c.id, geom.label('geom')])\
+    sql = sa.select(w.c.name, w.c.intnames, w.c.ref, ws.c.id, geom.label('geom'))\
             .where(w.c.id == ws.c.child)\
             .where(ws.c.id == oid)\
             .group_by(w.c.name, w.c.intnames, w.c.ref, ws.c.id)
@@ -116,16 +119,16 @@ def elevation(conn: directive.connection, tables: directive.tables,
     w = tables.ways.data
     ws = tables.joined_ways.data
 
-    sql = sa.select([gf.ST_LineMerge(gf.ST_Collect(w.c.geom)).label('geom')])\
+    sql = sa.select(gf.ST_LineMerge(gf.ST_Collect(w.c.geom)).label('geom'))\
             .where(w.c.id == ws.c.child)\
             .where(ws.c.id == oid)\
             .alias()
 
-    sel = sa.select([sql.c.geom,
-                     sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
-                             'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                     sql.c.geom.ST_NPoints(),
-                     gf.ST_Length(sql.c.geom)])
+    sel = sa.select(sql.c.geom,
+                    sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
+                            'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
+                    sql.c.geom.ST_NPoints(),
+                    gf.ST_Length(sql.c.geom))
 
     res = conn.execute(sel).first()
 
@@ -145,10 +148,12 @@ def elevation(conn: directive.connection, tables: directive.tables,
         geom = geom.simplify(res[2]/1000, preserve_topology=False)
 
     if geom.geom_type == 'LineString':
-        geom = [geom]
+        geom_list = [geom]
+    else:
+        geom_list = geom.geoms
 
     prev = None
-    for seg in geom:
+    for seg in geom_list:
         p = seg.coords[0]
         xcoords = array('d', [p[0]])
         ycoords = array('d', [p[1]])

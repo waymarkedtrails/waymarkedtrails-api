@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-3.0-only
+#
+# This file is part of the Waymarked Trails Map Project
+# Copyright (C) 2022-2023 Sarah Hoffmann
 import hug
 import sqlalchemy as sa
 from io import StringIO
@@ -22,11 +26,11 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
 
     # Route ways
     d = tables.style.data
-    q = sa.select([sa.literal('way').label('type'), d.c.toprels.label('top_relations'),
-                   d.c.cldrels.label('child_relations'),
-                   d.c.inrshields.concat(d.c.lshields).label('shields'),
-                   d.c.style, d.c['class'],
-                   d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry')])\
+    q = sa.select(sa.literal('way').label('type'), d.c.toprels.label('top_relations'),
+                  d.c.cldrels.label('child_relations'),
+                  d.c.inrshields.concat(d.c.lshields).label('shields'),
+                  d.c.style, d.c['class'],
+                  d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
           .where(d.c.geom.intersects(b.as_sql()))\
           .order_by(d.c.id)
 
@@ -36,9 +40,9 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
     # Guideposts
     if hasattr(tables, 'guideposts'):
         d = tables.guideposts.data
-        q = sa.select([sa.literal('guidepost').label('type'),
-                       d.c.id.label('osm_id'), d.c.name, d.c.ele,
-                       d.c.geom.ST_AsGeoJSON().label('geometry')])\
+        q = sa.select(sa.literal('guidepost').label('type'),
+                      d.c.id.label('osm_id'), d.c.name, d.c.ele,
+                      d.c.geom.ST_AsGeoJSON().label('geometry'))\
                 .where(d.c.geom.intersects(b.as_sql()))\
                 .order_by(d.c.id)
 
