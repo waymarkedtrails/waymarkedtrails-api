@@ -133,9 +133,12 @@ class RouteElevation:
         if diff > accuracy:
             accumulated_ascent += diff
 
+        if accumulated_ascent == 0 and last_valid > first_valid:
+            accumulated_ascent = last_valid - first_valid
+
         self.elevation['ascent'] += round_elevation(accumulated_ascent)
-        self.elevation['descent'] += round_elevation(accumulated_ascent
-                                                     - (last_valid - first_valid))
+        self.elevation['descent'] += max(0, round_elevation(accumulated_ascent
+                                                     - (last_valid - first_valid)))
 
 
     def add_segment(self, xcoord, ycoord, pos):

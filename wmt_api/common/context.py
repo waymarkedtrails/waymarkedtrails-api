@@ -63,11 +63,11 @@ class ApiContext(object):
 
     @classmethod
     def create_engine(cls):
-        cls.engine = create_engine(URL('postgresql',
-                                       database=cls.db_config.DB_NAME,
-                                       username=cls.db_config.DB_USER,
-                                       password=cls.db_config.DB_PASSWORD
-                                      ), echo=False)
+        cls.engine = create_engine(URL.create('postgresql',
+                                              database=cls.db_config.DB_NAME,
+                                              username=cls.db_config.DB_USER,
+                                              password=cls.db_config.DB_PASSWORD
+                                             ), echo=False)
 
     @property
     def connection(self):
