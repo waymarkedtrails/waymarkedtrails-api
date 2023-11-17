@@ -36,6 +36,7 @@ def test_info(simple_route, language_names):
     data = response.data
     assert data['id'] == simple_route
     assert data['name'] == language_names[1]
+    assert 'ref' not in data
 
 
 def test_info_via_routes(simple_route, language_names):

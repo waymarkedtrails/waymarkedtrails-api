@@ -53,7 +53,10 @@ class RouteItem(JsonSerializable):
 
     def _add_optional(self, name, row, key, default=None):
         value = row._mapping.get(key, None)
-        self.content[name] = value if value is not None else default
+        if value is None:
+            value = default
+        if value is not None:
+            self.content[name] = value if value is not None else default
 
     def _get_network(self, row):
         mapping = row._mapping
