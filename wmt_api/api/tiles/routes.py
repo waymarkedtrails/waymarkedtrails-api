@@ -30,10 +30,17 @@ def vector_tile(conn: directive.connection, tables: directive.tables,
                   d.c.cldrels.label('child_relations'),
                   d.c.inrshields.concat(d.c.lshields).label('shields'),
                   d.c.style, d.c['class'],
-                  d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
+                  d.c.geom.ST_Intersection(b.as_sql()).label('geometry'))\
           .where(d.c.geom.intersects(b.as_sql()))\
-          .order_by(d.c.id)
+          .order_by(d.c.id)\
+          .subquery()
 
+    q = sa.select(q.c.type, q.c.top_relations,
+                  q.c.child_relations, q.c.shields,
+                  q.c.style, q.c['class'],
+                  q.c.geometry.ST_AsGeoJSON().label('geometry'))\
+          .where(q.c.geometry.ST_GeometryType() == 'ST_LineString')\
+          .where(sa.not_(q.c.geometry.ST_IsEmpty()))
 
     elements = list(conn.execute(q))
 

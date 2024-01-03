@@ -16,7 +16,8 @@ def simple_routes(conn, style_factory, guidepost_table):
     style_factory('LINESTRING(0 0, 100 100)')
     style_factory('LINESTRING(10 10, 50 50)')
     style_factory('LINESTRING(2000 2000, 2100 2100)')
-    style_factory('LINESTRING(0 0, -100 -100)')
+    style_factory('LINESTRING(0 0, -100 -100)') # results in point geom
+    style_factory('LINESTRING(-6 5, 5 -6)') # results in empty line string
 
 
 def test_empty_tile(simple_routes):
@@ -29,4 +30,4 @@ def test_full_tile(simple_routes):
     response = hug.test.get(api, '/12/2048/2047.json')
 
     assert response.status == falcon.HTTP_OK
-    assert len(response.data['features']) == 4
+    assert len(response.data['features']) == 3
