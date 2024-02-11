@@ -1,19 +1,16 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2022 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
+import asyncio
 
-import xml.etree.ElementTree as ET
-
-import pytest
-import hug
 import falcon
 import shapely
+import xml.etree.ElementTree as ET
+import pytest
 
-import wmt_api.api.details.relation as api
-import wmt_api.api.details.routes as routes_api
-
-pytestmark = pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
+pytestmark = [pytest.mark.parametrize("mapname", ['hiking', 'slopes'], indirect=True),
+              pytest.mark.asyncio]
 
 @pytest.fixture
 def simple_route(conn, route_factory, hierarchy_table):
@@ -29,92 +26,142 @@ def language_names(request):
     return request.param
 
 
-def test_info(simple_route, language_names):
-    response = hug.test.get(api, '/', oid=simple_route,
+@pytest.fixture(params=['LINESTRING(0 0, 100 100)',
+                        'MULTILINESTRING((0 0, 100 100), (101 101, 200 200))'])
+def route_geoms(request, conn, route_factory, hierarchy_table):
+    return route_factory(84752, request.param)
+
+
+async def test_info(wmt_call, simple_route, language_names):
+    _, data = await wmt_call(f'/v1/details/relation/{simple_route}',
                             headers={'Accept-Language': language_names[0]})
-    assert response.status == falcon.HTTP_OK
-    data = response.data
+
     assert data['id'] == simple_route
     assert data['name'] == language_names[1]
     assert 'ref' not in data
 
 
-def test_info_via_routes(simple_route, language_names):
-    response = hug.test.get(routes_api, f'/relation/{simple_route}',
-                            headers={'Accept-Language': language_names[0]})
-    assert response.status == falcon.HTTP_OK
-    data = response.data
-    assert data['id'] == simple_route
-    assert data['name'] == language_names[1]
+@pytest.mark.parametrize('htype', ['superroutes', 'subroutes'])
+async def test_info_with_superroute(wmt_call, conn, simple_route,
+                                    route_factory, hierarchy_table,
+                                    relations_table, htype):
+    route_factory(44, 'LINESTRING(0 0, 100 100)', name='Super')
+
+    if htype == 'superroutes':
+        conn.execute(hierarchy_table.data.insert()
+                       .values({'parent': 44, 'child': simple_route, 'depth': 2}))
+    else:
+        r = relations_table.data
+        conn.execute(r.delete().where(r.c.id == simple_route))
+        conn.execute(r.insert()
+                       .values({'id': simple_route, 'tags': {'type': 'route'}, 'members': [{'id': 44, 'role': '', 'type': 'R'}]}))
+
+    _, data = await wmt_call(f'/v1/details/relation/{simple_route}')
+
+    assert htype in data
+    assert len(data[htype]) == 1
+
+    rdata = data[htype][0]
+
+    assert rdata['id'] == 44
+    assert rdata['name'] == 'Super'
 
 
-def test_info_unknown(relations_table, route_table, hierarchy_table):
-    assert hug.test.get(api, '/', oid=11).status == falcon.HTTP_NOT_FOUND
+
+async def test_info_unknown(wmt_call, relations_table, route_table, hierarchy_table):
+    status, _ = await wmt_call('/v1/details/relation/11', expect_success=False)
+
+    assert status == falcon.HTTP_NOT_FOUND
 
 
-def test_wikilink(conn, relations_table, route_table, hierarchy_table):
+async def test_wikilink(wmt_call, conn, relations_table, route_table, hierarchy_table):
     oid = 55
     conn.execute(relations_table.data.insert()\
         .values(dict(id=oid, tags={'wikipedia:de' : 'Wolke',
                                    'wikipedia:en' : 'Cloud'},
                      members=[dict(id=1, type='W', role='')])))
 
-    response = hug.test.get(api, '/wikilink', oid=oid,
-                            headers={'Accept-Language': 'en,de'})
-    assert response.status == falcon.HTTP_TEMPORARY_REDIRECT
-    assert response.headers_dict['location']\
-             == 'https://en.wikipedia.org/wiki/Cloud'
+    status, data = await wmt_call(f'/v1/details/relation/{oid}/wikilink',
+                                  expect_success=False, as_json=False,
+                                  headers={'Accept-Language': 'en,de'})
 
-    response = hug.test.get(api, '/wikilink', oid=oid,
-                            headers={'Accept-Language': 'de,en'})
-    assert response.status == falcon.HTTP_TEMPORARY_REDIRECT
-    assert response.headers_dict['location']\
-             == 'https://de.wikipedia.org/wiki/Wolke'
+    assert status == falcon.HTTP_SEE_OTHER
+    assert data  == 'https://en.wikipedia.org/wiki/Cloud'
 
+    status, data = await wmt_call(f'/v1/details/relation/{oid}/wikilink',
+                                  expect_success=False, as_json=False,
+                                  headers={'Accept-Language': 'de,en'})
 
-def test_wikilink_unknown(simple_route):
-    assert hug.test.get(api, '/wikilink', oid=11).status == falcon.HTTP_NOT_FOUND
+    assert status == falcon.HTTP_SEE_OTHER
+    assert data == 'https://de.wikipedia.org/wiki/Wolke'
 
 
-@pytest.fixture(params=['LINESTRING(0 0, 100 100)',
-                        'MULTILINESTRING((0 0, 100 100), (101 101, 200 200))'])
-def route_geoms(request, conn, route_factory, hierarchy_table):
-    return route_factory(84752, request.param)
+async def test_wikilink_unknown(wmt_call, simple_route):
+    status, _ = await wmt_call('/v1/details/relation/11/wikilink', expect_success=False)
 
-def test_geometry_geojson(route_geoms):
-    response = hug.test.get(api, '/geometry/geojson', oid=route_geoms)
-
-    assert response.status == falcon.HTTP_OK
-
-    assert response.data['type'] == 'FeatureCollection'
-    assert response.data['crs']['properties']['name'] == 'EPSG:3857'
-
-    geom = shapely.geometry.shape(response.data['features'][0]['geometry'])
+    assert status == falcon.HTTP_NOT_FOUND
 
 
-def test_geometry_geojson_unknown(relations_table, route_table, hierarchy_table):
-    assert hug.test.get(api, '/geometry/geojson', oid=11).status == falcon.HTTP_NOT_FOUND
+async def test_geometry_geojson(wmt_call, route_geoms):
+    _, data = await wmt_call(f'/v1/details/relation/{route_geoms}/geometry/geojson')
+
+    assert data['type'] == 'FeatureCollection'
+    assert data['crs']['properties']['name'] == 'EPSG:3857'
+
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type in ('LineString', 'MultiLineString')
+    assert geom.length > 0
+
+
+async def test_geometry_simplify(wmt_call, route_factory):
+    oid = route_factory(84752, 'LINESTRING(0 0, 0.0001 0.1, 0 0.15)')
+
+    _, data = await wmt_call(f'/v1/details/relation/{oid}/geometry/geojson')
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type == 'LineString'
+    assert len(geom.coords) == 3
+
+    _, data = await wmt_call(f'/v1/details/relation/{oid}/geometry/geojson',
+                             params={'simplify': 2})
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type == 'LineString'
+    assert len(geom.coords) == 2
+
+
+async def test_geometry_geojson_unknown(wmt_call, relations_table, route_table, hierarchy_table):
+    status, _ = await wmt_call('/v1/details/relation/11/geometry/geojson',
+                               expect_success=False)
+
+    assert status == falcon.HTTP_NOT_FOUND
+
+
+async def test_geometry_unknown_geometry(wmt_call, simple_route):
+    status, data = await wmt_call(f'/v1/details/relation/{simple_route}/geometry/fooson',
+                                  expect_success=False)
+
+    assert status == falcon.HTTP_BAD_REQUEST
+    assert 'Supported geometry types' in data['error']
 
 
 class GoemetryParamsGPX:
-    endpoint = '/geometry/gpx'
+    endpoint = 'geometry/gpx'
     root_tag = '{http://www.topografix.com/GPX/1/1}gpx'
 
     @staticmethod
-    def get_name(response):
-        root = ET.fromstring(response.data)
+    def get_name(data):
+        root = ET.fromstring(data)
         ele = root.find('{http://www.topografix.com/GPX/1/1}metadata')
         assert ele
         return ele.findtext('{http://www.topografix.com/GPX/1/1}name')
 
 
 class GoemetryParamKML:
-    endpoint = '/geometry/kml'
+    endpoint = 'geometry/kml'
     root_tag = '{http://www.opengis.net/kml/2.2}kml'
 
     @staticmethod
-    def get_name(response):
-        root = ET.fromstring(response.data)
+    def get_name(data):
+        root = ET.fromstring(data)
         ele = root.find('{http://www.opengis.net/kml/2.2}Document')
         assert ele
         return ele.findtext('{http://www.opengis.net/kml/2.2}name')
@@ -123,47 +170,50 @@ class GoemetryParamKML:
 @pytest.mark.parametrize('params', (GoemetryParamsGPX, GoemetryParamKML))
 class TestOtherGeometries:
     @staticmethod
-    def test_geometry_other(route_geoms, params):
-        response = hug.test.get(api, params.endpoint, oid=route_geoms)
+    async def test_geometry_other(wmt_call, route_geoms, params):
+        _, data = await wmt_call(f'/v1/details/relation/{route_geoms}/{params.endpoint}',
+                                 as_json=False)
 
-        assert response.status == falcon.HTTP_OK
-
-        root = ET.fromstring(response.data)
+        root = ET.fromstring(data)
         assert root.tag == params.root_tag
 
 
     @staticmethod
-    def test_geometry_other_unknown(relations_table, route_table, hierarchy_table, params):
-        assert hug.test.get(api, params.endpoint, oid=11).status == falcon.HTTP_NOT_FOUND
+    async def test_geometry_other_unknown(wmt_call, relations_table, route_table,
+                                          hierarchy_table, params):
+        status, _ = await wmt_call(f'/v1/details/relation/11/{params.endpoint}',
+                                   expect_success=False)
+
+        assert status == falcon.HTTP_NOT_FOUND
 
 
     @staticmethod
-    def test_geometry_kml_locale_name(simple_route, language_names, params):
-        response = hug.test.get(api, params.endpoint, oid=simple_route,
-                                headers={'Accept-Language': language_names[0]})
+    async def test_geometry_locale_name(wmt_call, simple_route, language_names, params):
+        _, data = await wmt_call(f'/v1/details/relation/{simple_route}/{params.endpoint}',
+                                 as_json=False,
+                                 headers={'Accept-Language': language_names[0]})
 
-        assert response.status == falcon.HTTP_OK
-        assert params.get_name(response) == language_names[1]
+        assert params.get_name(data) == language_names[1]
 
 
     @staticmethod
-    def test_geometry_ref_name(conn, route_factory, hierarchy_table, params):
+    async def test_geometry_ref_name(wmt_call, conn, route_factory, hierarchy_table, params):
         oid = route_factory(458374, 'LINESTRING(0 0, 100 100)',
                             ref='34', tags={'this' : 'that', 'me': 'you'})
 
-        response = hug.test.get(api, params.endpoint, oid=oid)
+        _, data = await wmt_call(f'/v1/details/relation/{oid}/{params.endpoint}',
+                                 as_json=False)
 
-        assert response.status == falcon.HTTP_OK
-        assert params.get_name(response) == '34'
+        assert params.get_name(data) == '34'
 
 
 
     @staticmethod
-    def test_geometry_no_name(conn, route_factory, hierarchy_table, params):
+    async def test_geometry_no_name(wmt_call, conn, route_factory, hierarchy_table, params):
         oid = route_factory(458374, 'LINESTRING(0 0, 100 100)',
                             tags={'this' : 'that', 'me': 'you'})
 
-        response = hug.test.get(api, params.endpoint, oid=oid)
+        _, data = await wmt_call(f'/v1/details/relation/{oid}/{params.endpoint}',
+                                 as_json=False)
 
-        assert response.status == falcon.HTTP_OK
-        assert params.get_name(response) == str(oid)
+        assert params.get_name(data) == str(oid)

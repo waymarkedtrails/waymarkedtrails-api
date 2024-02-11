@@ -1,15 +1,14 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
+import asyncio
 
 import pytest
-import hug
-import falcon
+import shapely
 
-import wmt_api.api.tiles.routes as api
-
-pytestmark = pytest.mark.parametrize("db", ["hiking"], indirect=True)
+pytestmark = [pytest.mark.parametrize("mapname", ["hiking"], indirect=True),
+              pytest.mark.asyncio]
 
 @pytest.fixture
 def simple_routes(conn, style_factory, guidepost_table):
@@ -20,14 +19,18 @@ def simple_routes(conn, style_factory, guidepost_table):
     style_factory('LINESTRING(-6 5, 5 -6)') # results in empty line string
 
 
-def test_empty_tile(simple_routes):
-    response = hug.test.get(api, '/12/0/0.json')
+async def test_empty_tile(wmt_call, simple_routes):
+    _, data = await wmt_call('/v1/tiles/12/0/0.json')
 
-    assert response.status == falcon.HTTP_OK
-    assert len(response.data['features']) == 0
+    assert len(data['features']) == 0
 
-def test_full_tile(simple_routes):
-    response = hug.test.get(api, '/12/2048/2047.json')
 
-    assert response.status == falcon.HTTP_OK
-    assert len(response.data['features']) == 3
+async def test_full_tile(wmt_call, simple_routes):
+    _, data = await wmt_call('/v1/tiles/12/2048/2047.json')
+
+    assert len(data['features']) == 3
+
+    for feat in data['features']:
+        assert 'properties' in feat
+        geom = shapely.geometry.shape(feat['geometry'])
+        assert geom.geom_type == 'LineString'

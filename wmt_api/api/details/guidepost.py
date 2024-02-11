@@ -1,34 +1,35 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
-"""
-Details API functions for guide posts.
-"""
-
-import hug
+# Copyright (C) 2024 Sarah Hoffmann
+import falcon
 import sqlalchemy as sa
 
-from ...common import directive
+from ...common import params
+from ...common.router import Router, needs_db
 from ...output.node_item import NodeItem
 
-@hug.get('/')
-@hug.cli()
-def info(conn: directive.connection, tables: directive.tables,
-         osmdata: directive.osmdata, locale: directive.locale,
-         oid: hug.types.number):
-    "Return general information about the guide post."
+class APIDetailsGuidepost(Router):
 
-    r = tables.guideposts.data
-    o = osmdata.node.data
+    def add_routes(self, app, base):
+        base += '/{oid:int(min=1)}'
+        app.add_route(base, self, suffix='info')
 
-    sql = sa.select(*NodeItem.make_selectables(r, o))\
-            .where(r.c.id == oid)\
-            .join(o, o.c.id == r.c.id)
 
-    res = conn.execute(sql).first()
+    @needs_db
+    async def on_get_info(self, conn, req, resp, oid):
+        locale = params.get_locale(req)
 
-    if res is None:
-        raise hug.HTTPNotFound()
+        r = self.context.db.tables.guideposts.data
+        o = self.context.db.osmdata.node.data
 
-    return NodeItem('guidepost', oid).add_row_data(res, locale)
+        sql = sa.select(*NodeItem.make_selectables(r, o))\
+                .where(r.c.id == oid)\
+                .join(o, o.c.id == r.c.id)
+
+        res = (await conn.execute(sql)).first()
+
+        if res is None:
+            raise falcon.HTTPNotFound()
+
+        NodeItem('guidepost', oid).add_row_data(res, locale).to_response(resp)

@@ -1,13 +1,15 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
 
 import hug
 from slugify import slugify
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from geoalchemy2.shape import to_shape
+
+from ..common.json_writer import JsonWriter
 
 class RouteGeometry(object):
     """ Formats output of a geometry for a single route.
@@ -18,7 +20,7 @@ class RouteGeometry(object):
     def __init__(self, obj, locales, fmt):
         self.obj = obj
         self.locales = locales
-        self.to_string = getattr(self, 'to_string_' + fmt)
+        self.to_response = getattr(self, 'to_response_' + fmt)
 
     def get_locale_name(self):
         for l in self.locales:
@@ -27,26 +29,30 @@ class RouteGeometry(object):
 
         return self.obj.name or self.obj.ref or str(self.obj.id)
 
-    def to_string_geojson(self, request=None, response=None):
-        if response is not None:
-            response.content_type = "application/json; charset=utf-8"
+    def to_response_geojson(self, request, response):
+        JsonWriter().start_object()\
+            .keyval('type', 'FeatureCollection')\
+            .key('crs').start_object()\
+                .keyval('type', 'name')\
+                .key('properties').start_object()\
+                    .keyval('name', 'EPSG:3857')\
+                    .end_object().next()\
+                .end_object().next()\
+            .key('features').start_array().start_object()\
+                .keyval('type', 'Feature')\
+                .key('geometry').raw(self.obj.geom).next()\
+                .end_object().next().end_array()\
+            .end_object()\
+            .to_response(response)
 
-        return f"""\
-         {{ "type": "FeatureCollection",
-            "crs": {{ "type": "name",
-                    "properties": {{ "name": "EPSG:3857"}}
-                   }},
-            "features": [{{ "type": "Feature", "geometry" : {self.obj.geom} }}]
-         }}""".encode('utf8')
 
-
-    def to_string_gpx(self, request=None, response=None):
+    def to_response_gpx(self, request, response):
         name = self.get_locale_name()
 
-        if response is not None:
-            response.content_type = "application/gpx+xml"
-            response.set_header('Content-Disposition',
-                                f'attachment; filename={slugify(name)}.gpx')
+        response.status = 200
+        response.content_type = "application/gpx+xml"
+        response.set_header('Content-Disposition',
+                            f'attachment; filename={slugify(name)}.gpx')
 
         root = ET.Element('gpx',
                           { 'xmlns' : "http://www.topografix.com/GPX/1/1",
@@ -62,11 +68,10 @@ class RouteGeometry(object):
         copy = ET.SubElement(meta, 'copyright', author='OpenStreetMap and Contributors')
         ET.SubElement(copy, 'license').text = 'https://www.openstreetmap.org/copyright'
 
-        if request is not None:
-            link = ET.SubElement(
-                    meta, 'link',
-                    href=request.uri)
-            ET.SubElement(link, 'text').text = 'Waymarked Trails'
+        link = ET.SubElement(
+                meta, 'link',
+                href=request.uri)
+        ET.SubElement(link, 'text').text = 'Waymarked Trails'
 
         ET.SubElement(meta, 'time').text = datetime.utcnow().isoformat()
 
@@ -88,16 +93,17 @@ class RouteGeometry(object):
             for pt in line.coords:
                 ET.SubElement(seg, 'trkpt', lat=f'{pt[1]:.7f}', lon=f'{pt[0]:.7f}')
 
-        return '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n\n'.encode('utf-8')\
+        response.data = '<?xml version="1.0" encoding="UTF-8" standalone="no" ?>\n\n'.encode('utf-8')\
                + ET.tostring(root, encoding='UTF-8')
 
-    def to_string_kml(self, request=None, response=None):
+
+    def to_response_kml(self, request, response):
         name = self.get_locale_name()
 
-        if response is not None:
-            response.content_type = 'application/vnd.google-earth.kml+xml'
-            response.set_header('Content-Disposition',
-                                f'attachment; filename={slugify(name)}.kml')
+        response.status = 200
+        response.content_type = 'application/vnd.google-earth.kml+xml'
+        response.set_header('Content-Disposition',
+                            f'attachment; filename={slugify(name)}.kml')
 
         root = ET.Element('kml',
                           { 'xmlns' : "http://www.opengis.net/kml/2.2",
@@ -110,8 +116,7 @@ class RouteGeometry(object):
         ET.SubElement(doc, 'name').text = name
         ET.SubElement(doc, 'atom:author').text = 'waymarkedtrails.org; OpenStreetMap and Contributors http://www.openstreetmap.org/copyright'
 
-        if request is not None:
-            ET.SubElement(doc, 'atom:link', {'href' : request.uri})
+        ET.SubElement(doc, 'atom:link', {'href' : request.uri})
 
         mark = ET.SubElement(doc, 'Placemark')
         ET.SubElement(mark, 'name').text = name
@@ -131,5 +136,5 @@ class RouteGeometry(object):
             ET.SubElement(linestring, 'coordinates').text = \
               '\n'.join((f'{pt[0]:.7f},{pt[1]:.7f}' for pt in line.coords))
 
-        return '<?xml version="1.0" encoding="UTF-8" ?>\n\n'.encode('utf-8') \
+        response.data = '<?xml version="1.0" encoding="UTF-8" ?>\n\n'.encode('utf-8') \
                  + ET.tostring(root, encoding="UTF-8")

@@ -1,19 +1,16 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
+import asyncio
 
-import xml.etree.ElementTree as ET
-
-import pytest
-import hug
 import falcon
 import shapely
+import xml.etree.ElementTree as ET
+import pytest
 
-import wmt_api.api.details.way as api
-import wmt_api.api.details.slopes as slopes_api
-
-pytestmark = pytest.mark.parametrize("db", ["slopes"], indirect=True)
+pytestmark = [pytest.mark.parametrize("mapname", ['slopes'], indirect=True),
+              pytest.mark.asyncio]
 
 @pytest.fixture
 def simple_way(conn, way_factory):
@@ -28,89 +25,101 @@ def language_names(request):
     return request.param
 
 
-def test_info(simple_way, language_names):
-    response = hug.test.get(api, '/', oid=simple_way,
-                            headers={'Accept-Language': language_names[0]})
-    assert response.status == falcon.HTTP_OK
-    data = response.data
+async def test_info(wmt_call, simple_way, language_names):
+    _, data = await wmt_call(f'/v1/details/way/{simple_way}',
+                             headers={'Accept-Language': language_names[0]})
+
     assert data['type'] == 'way'
     assert data['id'] == simple_way
     assert data['name'] == language_names[1]
 
 
-def test_info_via_routes(simple_way):
-    response = hug.test.get(slopes_api, f'/way/{simple_way}')
-    assert response.status == falcon.HTTP_OK
-    data = response.data
-    assert data['type'] == 'way'
-    assert data['id'] == simple_way
-    assert data['name'] == 'Hello World'
+async def test_info_unknown(wmt_call, osm_ways_table, ways_table):
+    status, _ = await wmt_call('/v1/details/way/11', expect_success=False)
+
+    assert status == falcon.HTTP_NOT_FOUND
 
 
-def test_info_unknown(conn, osm_ways_table, ways_table):
-    assert hug.test.get(api, '/', oid=11).status == falcon.HTTP_NOT_FOUND
-
-
-def test_wikilink(conn, osm_ways_table):
+async def test_wikilink(wmt_call, conn, osm_ways_table):
     oid = 55
     conn.execute(osm_ways_table.data.insert()\
         .values(dict(id=oid, tags={'wikipedia:de' : 'Wolke',
                                    'wikipedia:en' : 'Cloud'},
                      nodes=[1, 2])))
 
-    response = hug.test.get(api, '/wikilink', oid=oid,
-                            headers={'Accept-Language': 'en,de'})
-    assert response.status == falcon.HTTP_TEMPORARY_REDIRECT
-    assert response.headers_dict['location']\
-             == 'https://en.wikipedia.org/wiki/Cloud'
+    status, data = await wmt_call(f'/v1/details/way/{oid}/wikilink',
+                                  expect_success=False, as_json=False,
+                                  headers={'Accept-Language': 'en,de'})
 
-    response = hug.test.get(api, '/wikilink', oid=oid,
-                            headers={'Accept-Language': 'de,en'})
-    assert response.status == falcon.HTTP_TEMPORARY_REDIRECT
-    assert response.headers_dict['location']\
-             == 'https://de.wikipedia.org/wiki/Wolke'
+    assert status == falcon.HTTP_SEE_OTHER
+    assert data  == 'https://en.wikipedia.org/wiki/Cloud'
 
+    status, data = await wmt_call(f'/v1/details/way/{oid}/wikilink',
+                                  expect_success=False, as_json=False,
+                                  headers={'Accept-Language': 'de,en'})
 
-def test_wikilink_unknown(osm_ways_table):
-    assert hug.test.get(api, '/wikilink', oid=11).status == falcon.HTTP_NOT_FOUND
+    assert status == falcon.HTTP_SEE_OTHER
+    assert data == 'https://de.wikipedia.org/wiki/Wolke'
 
 
-def test_geometry_geojson(simple_way):
-    response = hug.test.get(api, '/geometry/geojson', oid=simple_way)
+async def test_wikilink_unknown(wmt_call, osm_ways_table):
+    status, _ = await wmt_call('/v1/details/way/11/wikilink', expect_success=False)
 
-    assert response.status == falcon.HTTP_OK
-
-    assert response.data['type'] == 'FeatureCollection'
-    assert response.data['crs']['properties']['name'] == 'EPSG:3857'
-
-    geom = shapely.geometry.shape(response.data['features'][0]['geometry'])
+    assert status == falcon.HTTP_NOT_FOUND
 
 
-def test_geometry_geojson_unknown(osm_ways_table, ways_table):
-    assert hug.test.get(api, '/geometry/geojson', oid=11).status == falcon.HTTP_NOT_FOUND
+async def test_geometry_geojson(wmt_call, simple_way):
+    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/geojson')
+
+    assert data['type'] == 'FeatureCollection'
+    assert data['crs']['properties']['name'] == 'EPSG:3857'
+
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type == 'LineString'
 
 
-def test_geometry_kml(simple_way):
-    response = hug.test.get(api, '/geometry/kml', oid=simple_way)
+async def test_geometry_simplify(wmt_call, way_factory):
+    oid = way_factory(84752, 'LINESTRING(0 0, 0.0001 0.1, 0 0.15)')
 
-    assert response.status == falcon.HTTP_OK
+    _, data = await wmt_call(f'/v1/details/way/{oid}/geometry/geojson')
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type == 'LineString'
+    assert len(geom.coords) == 3
 
-    root = ET.fromstring(response.data)
+    _, data = await wmt_call(f'/v1/details/way/{oid}/geometry/geojson',
+                             params={'simplify': 2})
+    geom = shapely.geometry.shape(data['features'][0]['geometry'])
+    assert geom.geom_type == 'LineString'
+    assert len(geom.coords) == 2
+
+
+@pytest.mark.parametrize('geomtype', ['geojson', 'kml', 'gpx'])
+async def test_geometry_unknown(wmt_call, osm_ways_table, ways_table, geomtype):
+    status, _ = await wmt_call(f'/v1/details/way/11/geometry/{geomtype}',
+                               expect_success=False)
+
+    assert status == falcon.HTTP_NOT_FOUND
+
+
+async def test_geometry_unknown_geometry_type(wmt_call, simple_way):
+    status, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/fooson',
+                                  expect_success=False)
+
+    assert status == falcon.HTTP_BAD_REQUEST
+    assert 'Supported geometry types' in data['error']
+
+
+async def test_geometry_kml(wmt_call, simple_way):
+    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/kml',
+                             as_json=False)
+
+    root = ET.fromstring(data)
     assert root.tag == '{http://www.opengis.net/kml/2.2}kml'
 
 
-def test_geometry_kml_unknown(osm_ways_table, ways_table):
-    assert hug.test.get(api, '/geometry/kml', oid=11).status == falcon.HTTP_NOT_FOUND
+async def test_geometry_gpx(wmt_call, simple_way):
+    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/gpx',
+                             as_json=False)
 
-
-def test_geometry_gpx(simple_way):
-    response = hug.test.get(api, '/geometry/gpx', oid=simple_way)
-
-    assert response.status == falcon.HTTP_OK
-
-    root = ET.fromstring(response.data)
+    root = ET.fromstring(data)
     assert root.tag == '{http://www.topografix.com/GPX/1/1}gpx'
-
-
-def test_geometry_gpx_unknown(osm_ways_table, ways_table):
-    assert hug.test.get(api, '/geometry/gpx', oid=11).status == falcon.HTTP_NOT_FOUND

@@ -6,14 +6,14 @@ recreational routes from [OpenStreetMap](https://openstreetmap.org) and
 lets you inspect the routes and selected details.
 
 This repository contains the API frontend. It is implemented with
-[hug](https://www.hug.rest/).
+[falcon](https://falconframework.org/).
 
 Installation
 ============
 
 The API depends on the following packages:
 
- * [hug](https://www.hug.rest/)
+ * [falcon](https://falconframework.org/)
  * [osgende](https://github.com/waymarkedtrails/osgende)
  * [waymarkedtrails-backend](https://github.com/waymarkedtrails/waymarkedtrails-backend)
 
@@ -30,17 +30,6 @@ dependencies:
                      python3-falcon python3-slugify
 
 
-The hug package in Debian is too old. You need to get it via pip instead.
-If you haven't done so yet, create a virtual environment for waymarkedtrails
-and enter it:
-
-    virtualenv -p python3 --system-site-packages wmtenv
-    . wmtenv/bin/activate
-
-Then install hug:
-
-    pip install hug
-
 The wmt_api pacckage can simply be installed with pip:
 
     pip install .
@@ -52,31 +41,21 @@ Running the API
 The API needs a database provided by the waymarkedtrails-backend package.
 See its documentation how to set up the database.
 
-The API is a WSGI application. Run it with your favourite WSGI server.
+The API is a ASGI application. Run it with your favourite ASGI server.
 Set the WMT_CONFIG environment variable to choose the flavour.
 
-For example, to run the waymarkedtrails API for the hiking map with
-[uwsgi](https://uwsgi-docs.readthedocs.io/en/latest/) for development purposes.
-First install uwsgi:
+The following describes how to run the waymarkedtrails API for the hiking map with
+[uvicorn](https://www.uvicorn.org/) for development purposes.
+First install uvicorn:
 
-    sudo apt install uwsgi-plugin-python3
+    sudo apt install uvicorn
 
 Then run the API in development mode:
 
     export WMT_CONFIG=hiking
-    uwsgi --plugin python3 --py-auto-reload 1 --socket 127.0.0.1:8080 --protocol=http --wsgi wmt_api.frontend
+    uvicorn --port 8080 wmt_api.frontend:app
 
-To set up uwsgi for production, please consult its documentation.
-
-_Warning:_ the code is not compatible with ujson. If you get an error message
-
-    TypeError: 'Type[ujson] is not Serializable'
-
-then either make sure that `ujson` is not installed in your virtualenv or
-force hug to use the built-in json library by setting the environment variable
-`HUG_USE_UJSON` to the empty value:
-
-    export HUG_USE_UJSON=
+To set up uvicorn for production, please consult its documentation.
 
 License
 =======

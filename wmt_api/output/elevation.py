@@ -2,13 +2,14 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2012-2013 Espen Oldeman Lund
-# Copyright (C) 2020-2023 Sarah Hoffmann
-
+# Copyright (C) 2024 Sarah Hoffmann
+import json
 from math import ceil, fabs
 from collections import OrderedDict
 
 from osgeo import gdal
 import numpy
+import falcon
 from scipy.ndimage import map_coordinates
 
 def round_elevation(ele, base=5):
@@ -94,8 +95,10 @@ class RouteElevation:
         self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
                                                     dem.raster_array(bounds)
 
-    def as_dict(self):
-        return self.elevation
+    def to_response(self, response):
+        response.status = 200
+        response.content_type = falcon.MEDIA_JSON
+        response.text = json.dumps(self.elevation)
 
     def _add_ascent(self, elev):
         """ Calculate accumulated ascent and descent.

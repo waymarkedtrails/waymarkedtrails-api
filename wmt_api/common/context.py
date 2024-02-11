@@ -1,80 +1,56 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
-
-import threading
+# Copyright (C) 2023 Sarah Hoffmann
 import importlib
 import logging
 from pathlib import Path
 
-from sqlalchemy import create_engine
+import sqlalchemy.ext.asyncio as sa_asyncio
 from sqlalchemy.engine.url import URL
 
 from wmt_shields import ShieldFactory
 
 log = logging.getLogger(__name__)
 
-class ApiContext(object):
-    """ Provide global settings and call local context for the
+class Context:
+    """ Provide global settings and the DB engine for the
         Waymarkedtrails API.
     """
 
-    @classmethod
-    def init_globals(cls, mapname):
-        """ Initialise the global context available for all calls.
-            The context is saved in the form of class variables.
-            `mapname` describes the name of the map to initialise. The wmt_db
-            and wmt_api configurations  with the corresponding name are
-            loaded and used.
-        """
-        cls.mapname = mapname
+    def __init__(self, mapname, url=None):
+        self.mapname = mapname
 
         try:
-            cls.db_config = importlib.import_module(f'wmt_db.config.{mapname}')
+            self.config = importlib.import_module(f'wmt_db.config.{mapname}')
         except ModuleNotFoundError:
             log.error("Cannot find DB config for route map named '%s'.", mapname)
             raise
 
         try:
             api_config = importlib.import_module('wmt_local_config.api')
-            cls.dem = Path(api_config.DEM_FILE)
+            self.dem = Path(api_config.DEM_FILE)
         except ModuleNotFoundError:
             log.warning("Cannot find API config. Elevation profiles not available.")
-            cls.dem = None
+            self.dem = None
 
-        cls.shield_factory = ShieldFactory(cls.db_config.ROUTES.symbols,
-                                           cls.db_config.SYMBOLS)
-
-        cls.thread_data = threading.local()
+        self.shield_factory = ShieldFactory(self.config.ROUTES.symbols, self.config.SYMBOLS)
 
         try:
             mapdb_pkg = importlib.import_module(
-                          f'wmt_db.maptype.{cls.db_config.MAPTYPE}')
+                          f'wmt_db.maptype.{self.config.MAPTYPE}')
         except ModuleNotFoundError:
-            log.error("Unknown map type '%s'.", cls.db_config.MAPTYPE)
+            log.error("Unknown map type '%s'.", self.config.MAPTYPE)
             raise
 
         class Options:
             no_engine = True
 
-        cls.tables = mapdb_pkg.create_mapdb(cls.db_config, Options())
-        cls.create_engine()
+        self.db = mapdb_pkg.create_mapdb(self.config, Options())
 
-    @classmethod
-    def create_engine(cls):
-        cls.engine = create_engine(URL.create('postgresql',
-                                              database=cls.db_config.DB_NAME,
-                                              username=cls.db_config.DB_USER,
-                                              password=cls.db_config.DB_PASSWORD
-                                             ), echo=False)
-
-    @property
-    def connection(self):
-        """ Get the database connection for the current thread. If none
-            exists, one will be implicitly created.
-        """
-        if not hasattr(self.thread_data, 'conn'):
-            self.thread_data.conn = \
-                self.engine.connect().execution_options(isolation_level="AUTOCOMMIT")
-        return self.thread_data.conn
+        if url is None:
+            url = URL.create('postgresql+psycopg',
+                                 database=self.config.DB_NAME,
+                                 username=self.config.DB_USER,
+                                 password=self.config.DB_PASSWORD)
+        self.engine = sa_asyncio.create_async_engine(url, echo=False)

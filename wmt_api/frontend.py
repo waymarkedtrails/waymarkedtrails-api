@@ -1,47 +1,48 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
-
-import hug
+# Copyright (C) 2024 Sarah Hoffmann
 import os
+import importlib
+import traceback
 
-hug.defaults.cli_output_format = hug.output_format.json
+import falcon.asgi
 
-from wmt_api.api import base
-from wmt_api.common.context import ApiContext
+from .common.context import Context
+from .common.errors import APIError
+from .api.status import APIStatus
+from .api.symbols import APISymbols
 
-ApiContext.init_globals(os.environ['WMT_CONFIG'])
+async def print_traceback(req, resp, ex, params):
+    traceback.print_exception(ex)
 
-@hug.startup()
-def init_settings(api):
-    # see https://github.com/hugapi/hug/issues/623
-    if hasattr(api.http, 'falcon'):
-        api.http.falcon.req_options.auto_parse_qs_csv = False
+async def api_error_handler(req, resp, exception, _):
+    """ Special error handler that passes message and content type as
+        per exception info.
+    """
+    resp.status = exception.status
+    resp.text = '{"error": "%s"}' % exception.msg
+    resp.content_type = falcon.MEDIA_JSON
 
-@hug.context_factory()
-def create_context(*args, **kwargs):
-    return ApiContext()
 
-hug.API(__name__).http.add_middleware(hug.middleware.CORSMiddleware(hug.API(__name__)))
-hug.API(__name__).extend(base, '')
+def create_app(context=None):
+    if context is None:
+        context = Context(os.environ.get('WMT_CONFIG', '') or 'hiking')
 
-if ApiContext.db_config.MAPTYPE == 'routes':
-    from wmt_api.api.listings import routes as listings
-    from wmt_api.api.details import routes as details
-    from wmt_api.api.tiles import routes as tiles
-elif ApiContext.db_config.MAPTYPE == 'slopes':
-    from wmt_api.api.listings import slopes as listings
-    from wmt_api.api.details import slopes as details
-    from wmt_api.api.tiles import slopes as tiles
-else:
-    raise RuntimeError(f"No API specified for map type '{ApiContext.db_config.MAPTYPE}'")
+    app = falcon.asgi.App(cors_enable=True, media_type=falcon.MEDIA_JSON)
+    app.add_error_handler(APIError, api_error_handler)
+    if 'WMT_DEBUG' in os.environ:
+        app.add_error_handler(Exception, print_traceback)
+    APIStatus(context).add_routes(app, '/v1/status')
+    APISymbols(context).add_routes(app, '/v1/symbols')
 
-hug.API(__name__).extend(listings, '/list')
-hug.API(__name__).extend(details, '/details')
-hug.API(__name__).extend(tiles, '/tiles')
+    map_type = importlib.import_module(f'wmt_api.api.{context.config.MAPTYPE}')
 
-application = __hug_wsgi__
+    map_type.APIListing(context).add_routes(app, '/v1/list')
+    map_type.APITiles(context).add_routes(app, '/v1/tiles')
+    map_type.APIDetails(context).add_routes(app, '/v1/details')
 
-if __name__ == '__main__':
-    hug.API(__name__).cli()
+    return app
+
+
+app = create_app()

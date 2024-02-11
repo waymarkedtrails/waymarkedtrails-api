@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
-
-from collections import OrderedDict
+# Copyright (C) 2024 Sarah Hoffmann
 
 from osgende.common.tags import TagStore
 
-from .json_convert import JsonSerializable
+from ..common.json_writer import JsonWriter
 
-class NodeItem(JsonSerializable):
+class NodeItem:
     """ Collects detailed information of route points like guideposts
         and network nodes.
     """
@@ -21,33 +19,32 @@ class NodeItem(JsonSerializable):
                 node_table.c.tags]
 
     def __init__(self, typ, oid):
-        self.content = OrderedDict(type=typ, id=oid)
+        self.content = JsonWriter().start_object()\
+                                   .keyval('type', typ)\
+                                   .keyval('id', oid)
 
-    def to_json_serializable(self):
-        return self.content
-
-    def add_if(self, key, value):
-        if value is not None:
-            self.content[key]  = value
+    def to_response(self, response):
+        self.content.end_object().to_response(response)
 
     def add_row_data(self, row, locales):
         loctags = TagStore.make_localized(row.tags, locales)
 
         if 'name' in loctags:
-            self.content['name'] = loctags['name']
+            locname = loctags['name']
+            self.content.keyval('name', locname)
 
-            if row.name and row.name != self.content['name']:
-                self.content['local_name'] = row.name
+            if row.name and row.name != locname:
+                self.content.keyval('local_name', row.name)
 
-        self.add_if('ele', row.ele)
+        self.content.keyval_not_none('ele', row.ele)
 
         for tag in ('ref', 'operator', 'description', 'note'):
-            self.add_if(tag, loctags.get(tag))
+            self.content.keyval_not_none(tag, loctags.get(tag))
 
-        self.add_if('image', loctags.get_url(keys=['image']))
+        self.content.keyval_not_none('image', loctags.get_url(keys=['image']))
 
-        self.content['tags'] = row.tags
-        self.content['x'] = row.x
-        self.content['y'] = row.y
+        self.content.keyval('tags', row.tags)
+        self.content.keyval('x', row.x)
+        self.content.keyval('y', row.y)
 
         return self

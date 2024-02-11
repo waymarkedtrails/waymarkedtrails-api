@@ -1,33 +1,45 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
 
-from collections import OrderedDict
-
-from .json_convert import JsonSerializable
+from ..common.json_writer import JsonWriter
 from .route_item import RouteItem
 
-class RouteList(JsonSerializable):
+class RouteList:
 
     def __init__(self, **kwargs):
-        self.content = OrderedDict(**kwargs)
-        self.content['results'] = []
+        self.items = 0
+        self.to_ignore = 0
+        self.out = JsonWriter()
+        self.out.start_object()
+        for k, v in kwargs.items():
+            self.out.keyval(k, v)
+        self.out.key('results').start_array()
 
-    def set_items(self, res, locale):
-        self.content['results'] = [RouteItem(r, locale) for r in res]
-
-    def add_item(self, obj, locale):
-        self.content['results'].append(RouteItem(obj, locale))
-
-    def add_items(self, objs, locale):
-        self.content['results'].extend([RouteItem(obj, locale) for obj in objs])
-
-    def drop_leading_results(self, num):
-        del self.content['results'][0:num]
 
     def __len__(self):
-        return len(self.content['results'])
+        return self.items
 
-    def to_json_serializable(self):
-        return self.content
+
+    def ignore_next_items(self, num):
+        self.to_ignore = num
+
+
+    def add_items(self, objs, locale):
+        for obj in objs:
+            self.add_item(obj, locale)
+
+
+    def add_item(self, obj, locale):
+        if self.to_ignore > 0:
+            self.to_ignore -= 1
+        else:
+            self.items += 1
+            RouteItem(self.out, obj, locale).finish()
+            self.out.next()
+
+
+    def to_response(self, response):
+        self.out.end_array().end_object()
+        self.out.to_response(response)

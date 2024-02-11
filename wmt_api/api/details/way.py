@@ -1,120 +1,122 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
-"""
-Details API functions for simple ways (from the way table).
-"""
-from array import array
-
-import hug
+# Copyright (C) 2024 Sarah Hoffmann
+import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2.shape import to_shape
-from shapely.geometry import Point, LineString
 
-from ...common import directive
-from ...common.formatter import format_as_redirect, format_object
-from ...output.route_item import DetailedRouteItem, RouteItem
+from ...common import params
+from ...common.router import Router, needs_db
+from ...common.errors import APIError
+from ...common.json_writer import JsonWriter
+from ...output.route_item import DetailedRouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.geometry import RouteGeometry
 from ...output.elevation import RouteElevation
 
-@hug.get('/')
-@hug.cli()
-def info(conn: directive.connection, tables: directive.tables,
-         osmdata: directive.osmdata, locale: directive.locale,
-         oid: hug.types.number):
-    "Return general information about the way."
+class APIDetailsWay(Router):
 
-    r = tables.ways.data
-    o = osmdata.way.data
-
-    sql = sa.select(*DetailedRouteItem.make_selectables(r, o))\
-                            .where(r.c.id == oid)\
-                            .join(o, o.c.id == r.c.id)
-
-    row = conn.execute(sql).first()
-
-    if row is None:
-        raise hug.HTTPNotFound()
-
-    return DetailedRouteItem(row, locale, objtype='way')
+    def add_routes(self, app, base):
+        base += '/{oid:int(min=1)}'
+        app.add_route(base, self, suffix='info')
+        app.add_route(base + '/wikilink', self, suffix='wikilink')
+        app.add_route(base + '/geometry/{geomtype}', self, suffix='geometry')
+        app.add_route(base + '/elevation', self, suffix='elevation')
 
 
-@hug.get('/wikilink', output=format_as_redirect)
-@hug.cli(output=hug.output_format.text)
-def wikilink(conn: directive.connection, osmdata: directive.osmdata,
-             locale: directive.locale, oid: hug.types.number):
-    "Return a redirct into the Wikipedia page with further information."
+    @needs_db
+    async def on_get_info(self, conn, req, resp, oid):
+        locale = params.get_locale(req)
+        r = self.context.db.tables.ways.data
+        o = self.context.db.osmdata.way.data
 
-    r = osmdata.way.data
+        sql = sa.select(*DetailedRouteItem.make_selectables(r, o))\
+                                .where(r.c.id == oid)\
+                                .join(o, o.c.id == r.c.id)
 
-    return get_wikipedia_link(
-             conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
-             locale)
+        row = (await conn.execute(sql)).first()
 
-@hug.get('/geometry/{geomtype}', output=format_object)
-@hug.cli(output=format_object)
-def geometry(conn: directive.connection, tables: directive.tables,
-             locale: directive.locale,
-             oid: hug.types.number,
-             geomtype : hug.types.one_of(('geojson', 'kml', 'gpx')),
-             simplify : int = None):
-    """ Return the geometry of the way. Supported formats are geojson,
-        kml and gpx.
-    """
-    r = tables.ways.data
+        if row is None:
+            raise falcon.HTTPNotFound()
 
-    geom = r.c.geom
-    if simplify is not None:
-        geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
-    if geomtype == 'geojson' :
-        geom = geom.ST_AsGeoJSON()
-    else:
-        geom = geom.ST_Transform(4326)
-
-    rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
-
-    obj = conn.execute(sa.select(*rows).where(r.c.id == oid)).first()
-
-    if obj is None:
-        raise hug.HTTPNotFound()
-
-    return RouteGeometry(obj, locales=locale, fmt=geomtype)
+        writer = JsonWriter()
+        DetailedRouteItem(writer, row, locale, objtype='way').finish()
+        writer.to_response(resp)
 
 
-@hug.get()
-@hug.cli()
-def elevation(conn: directive.connection, tables: directive.tables,
-              dem: directive.dem_file,
-              oid: hug.types.number, segments: hug.types.in_range(1, 500) = 100):
-    "Return the elevation profile of the way."
+    @needs_db
+    async def on_get_wikilink(self, conn, req, resp, oid):
+        locale = params.get_locale(req)
 
-    if dem is None:
-        raise hug.HTTPNotFound()
+        r = self.context.db.osmdata.way.data
 
-    r = tables.ways.data
+        url = get_wikipedia_link(
+                 await conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
+                 locale)
 
-    sel = sa.select(gf.ST_Points(gf.ST_Collect(
-                         gf.ST_PointN(r.c.geom, 1),
-                         gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
-                    sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
-                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]')
-                   ).where(r.c.id == oid)
+        if url is None:
+            raise falcon.HTTPNotFound()
 
-    res = conn.execute(sel).first()
+        raise falcon.HTTPSeeOther(url)
 
-    if res is None:
-        raise hug.HTTPNotFound()
 
-    geom = to_shape(res[0])
-    ele = RouteElevation(oid, dem, geom.bounds)
+    @needs_db
+    async def on_get_geometry(self, conn, req, resp, oid, geomtype):
+        locale = params.get_locale(req)
+        simplify = params.as_int(req, 'simplify',  default=0)
+        if geomtype not in ('geojson', 'kml', 'gpx'):
+            raise APIError("Supported geometry types are: geojson, kml, gpx")
 
-    xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
-    geomlen = res[1]
-    pos = [geomlen*i/float(segments) for i in range(segments + 1)]
+        r = self.context.db.tables.ways.data
 
-    ele.add_segment(xcoord, ycoord, pos)
+        geom = r.c.geom
+        if simplify > 0:
+            geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
+        if geomtype == 'geojson':
+            geom = geom.ST_AsGeoJSON()
+        else:
+            geom = geom.ST_Transform(4326)
 
-    return ele.as_dict()
+        rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
+
+        obj = (await conn.execute(sa.select(*rows).where(r.c.id == oid))).first()
+
+        if obj is None:
+            raise falcon.HTTPNotFound()
+
+        RouteGeometry(obj, locales=locale, fmt=geomtype).to_response(req, resp)
+
+
+    @needs_db
+    async def on_get_elevation(self, conn, req, resp, oid):
+        segments = params.as_int(req, 'segments', default=100, vmin=1, vmax=500)
+
+        if self.context.dem is None:
+            raise falcon.HTTPNotFound()
+
+        r = self.context.db.tables.ways.data
+
+        sel = sa.select(gf.ST_Points(gf.ST_Collect(
+                             gf.ST_PointN(r.c.geom, 1),
+                             gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
+                        sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
+                               sa.text('\'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]\''))
+                       ).where(r.c.id == oid)
+
+        res = (await conn.execute(sel)).first()
+
+        if res is None:
+            raise falcon.HTTPNotFound()
+
+        geom = to_shape(res[0])
+        ele = RouteElevation(oid, self.context.dem, geom.bounds)
+
+        xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
+        geomlen = res[1]
+        pos = [geomlen*i/float(segments) for i in range(segments + 1)]
+
+        ele.add_segment(xcoord, ycoord, pos)
+
+        ele.to_response(resp)

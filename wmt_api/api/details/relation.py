@@ -1,189 +1,197 @@
-# SPDX-License-Identifier: GPL-3.0-only
+# SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
-"""
-Details API functions for route relations (from the route table).
-"""
-from array import array
-
-import hug
+# Copyright (C) 2024 Sarah Hoffmann
+import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2.shape import to_shape
 from shapely.geometry import Point, LineString
 
-from ...common import directive
-from ...common.formatter import format_as_redirect, format_object
-from ...output.route_item import DetailedRouteItem, RouteItem
+from ...common import params
+from ...common.errors import APIError
+from ...common.json_writer import JsonWriter
+from ...common.router import Router, needs_db
 from ...output.wikilink import get_wikipedia_link
+from ...output.route_item import DetailedRouteItem, RouteItem
 from ...output.geometry import RouteGeometry
 from ...output.elevation import RouteElevation
 
-@hug.get('/')
-@hug.cli()
-def info(conn: directive.connection, tables: directive.tables,
-         osmdata: directive.osmdata, locale: directive.locale,
-         oid: hug.types.number):
-    "Return general information about the route."
 
-    r = tables.routes.data
-    o = osmdata.relation.data
-    h = tables.hierarchy.data
+class APIDetailsRelation(Router):
 
-    fields = DetailedRouteItem.make_selectables(r, o)
-    fields.append(sa.func.jsonb_path_query_array(o.c.members,
-                                                 '$[*] ? (@.type == "R").id').label("relation_ids"))
-
-    row = conn.execute(sa.select(*fields)
-                         .where(r.c.id == oid)
-                         .join(o, o.c.id == r.c.id)).first()
-
-    if row is None:
-        raise hug.HTTPNotFound()
-
-    res = DetailedRouteItem(row, locale, objtype='relation')
-
-    # add subroutes where applicable
-    if row.relation_ids:
-        sections = conn.execute(sa.select(*RouteItem.make_selectables(r))\
-                                  .where(r.c.id.in_(row.relation_ids)))
-
-        # Make sure subroutes appear in the order of the relation.
-        subs = { s['id']: RouteItem(s) for s in sections}
-        res.add_extra_info('subroutes', [subs[oid] for oid in row.relation_ids
-                                         if oid in subs])
+    def add_routes(self, app, base):
+        base += '/{oid:int(min=1)}'
+        app.add_route(base, self, suffix='info')
+        app.add_route(base + '/wikilink', self, suffix='wikilink')
+        app.add_route(base + '/geometry/{geomtype}', self, suffix='geometry')
+        app.add_route(base + '/elevation', self, suffix='elevation')
 
 
-    # add superroutes where applicable
-    w = sa.select(h.c.parent).distinct()\
-             .where(h.c.child == oid).where(h.c.depth == 2)
+    @needs_db
+    async def on_get_info(self, conn, req, resp, oid):
+        locale = params.get_locale(req)
 
-    sections = conn.execute(sa.select(*RouteItem.make_selectables(r))\
-                             .where(r.c.id != oid).where(r.c.id.in_(w)))
+        r = self.context.db.tables.routes.data
+        o = self.context.db.osmdata.relation.data
+        h = self.context.db.tables.hierarchy.data
 
-    if sections.rowcount > 0:
-        res.add_extra_info('superroutes', [RouteItem(s) for s in sections])
+        fields = DetailedRouteItem.make_selectables(r, o)
+        fields.append(sa.func.jsonb_path_query_array(o.c.members,
+                                          sa.text("'$[*] ? (@.type == \"R\").id'"))
+                        .label("relation_ids"))
 
-    return res
+        row = (await conn.execute(sa.select(*fields)
+                                    .where(r.c.id == oid)
+                                    .join(o, o.c.id == r.c.id))).first()
 
-@hug.get('/wikilink', output=format_as_redirect)
-@hug.cli(output=hug.output_format.text)
-def wikilink(conn: directive.connection, osmdata: directive.osmdata,
-             locale: directive.locale, oid: hug.types.number):
-    "Return a redirct into the Wikipedia page with further information."
+        if row is None:
+            raise falcon.HTTPNotFound()
 
-    r = osmdata.relation.data
+        writer = JsonWriter()
+        res = DetailedRouteItem(writer, row, locale, objtype='relation')
 
-    return get_wikipedia_link(
-             conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
-             locale)
+        # add subroutes where applicable
+        if row.relation_ids:
+            sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))\
+                                            .where(r.c.id.in_(row.relation_ids)))
 
-@hug.get('/geometry/{geomtype}', output=format_object)
-@hug.cli(output=format_object)
-def geometry(conn: directive.connection, tables: directive.tables,
-             locale: directive.locale,
-             oid: hug.types.number,
-             geomtype : hug.types.one_of(('geojson', 'kml', 'gpx')),
-             simplify : int = None):
-    """ Return the geometry of the function. Supported formats are geojson,
-        kml and gpx.
-    """
-    r = tables.routes.data
-
-    geom = r.c.geom
-    if simplify is not None:
-        geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
-    if geomtype == 'geojson' :
-        geom = geom.ST_AsGeoJSON()
-    else:
-        geom = geom.ST_Transform(4326)
-
-    rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
-
-    obj = conn.execute(sa.select(*rows).where(r.c.id == oid)).first()
-
-    if obj is None:
-        raise hug.HTTPNotFound()
-
-    return RouteGeometry(obj, locales=locale, fmt=geomtype)
+            # Make sure subroutes appear in the order of the relation.
+            subs = { s.id: s for s in sections}
+            res.add_extra_route_info('subroutes',
+                                     (subs[oid] for oid in row.relation_ids if oid in subs),
+                                     locale)
 
 
-@hug.get()
-@hug.cli()
-def elevation(conn: directive.connection, tables: directive.tables,
-              dem: directive.dem_file,
-              oid: hug.types.number, segments: hug.types.in_range(1, 500) = 100):
-    "Return the elevation profile of the route."
+        # add superroutes where applicable
+        w = sa.select(h.c.parent).distinct()\
+                 .where(h.c.child == oid).where(h.c.depth == 2)
 
-    if dem is None:
-        raise hug.HTTPNotFound()
+        sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))\
+                                        .where(r.c.id != oid).where(r.c.id.in_(w)))
 
-    r = tables.routes.data
+        if sections.rowcount > 0:
+            res.add_extra_route_info('superroutes', sections, locale)
 
-    sel = sa.select(gf.ST_Points(gf.ST_Collect(
-                         gf.ST_PointN(r.c.geom, 1),
-                         gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
-                    sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
-                           'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]')
-                    ).where(r.c.id == oid)\
-            .where(r.c.geom.ST_GeometryType() == 'ST_LineString')
+        res.finish()
+        writer.to_response(resp)
 
-    res = conn.execute(sel).first()
 
-    if res is not None:
-        geom = to_shape(res[0])
-        ele = RouteElevation(oid, dem, geom.bounds)
+    @needs_db
+    async def on_get_wikilink(self, conn, req, resp, oid):
+        locale = params.get_locale(req)
 
-        xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
-        geomlen = res[1]
-        pos = [geomlen*i/float(segments) for i in range(segments + 1)]
+        r = self.context.db.osmdata.relation.data
 
-        ele.add_segment(xcoord, ycoord, pos)
+        url = get_wikipedia_link(
+                 await conn.scalar(sa.select(r.c.tags).where(r.c.id == oid)),
+                 locale)
 
-        return ele.as_dict()
+        if url is None:
+            raise falcon.HTTPNotFound()
 
-    # special treatment for multilinestrings
-    sel = sa.select(r.c.geom,
-                    sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
-                             'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                    r.c.geom.ST_NPoints(),
-                    gf.ST_Length(r.c.geom))\
-                .where(r.c.id == oid)
+        raise falcon.HTTPSeeOther(url)
 
-    res = conn.execute(sel).first()
 
-    if res is None or res[0] is None:
-        raise hug.HTTPNotFound()
+    @needs_db
+    async def on_get_geometry(self, conn, req, resp, oid, geomtype):
+        locale = params.get_locale(req)
+        simplify = params.as_int(req, 'simplify',  default=0)
+        if geomtype not in ('geojson', 'kml', 'gpx'):
+            raise APIError("Supported geometry types are: geojson, kml, gpx")
 
-    geom = to_shape(res[0])
-    # Computing length in Mercator is slightly off, correct it via the
-    # actual length.
-    dist_fac = res[1]/res[3]
-    ele = RouteElevation(oid, dem, geom.bounds)
+        r = self.context.db.tables.routes.data
 
-    if res[2] > 10000:
-        geom = geom.simplify(res[2]/500, preserve_topology=False)
-    elif res[2] > 4000:
-        geom = geom.simplify(res[2]/1000, preserve_topology=False)
-
-    prev = None
-    for seg in geom.geoms:
-        p = seg.coords[0]
-        xcoords = [p[0]]
-        ycoords = [p[1]]
-        pos = []
-        if prev is not None:
-            pos.append(prev[2][-1] + \
-                    Point(prev[0][-1], prev[1][-1]).distance(Point(*p)) * dist_fac)
+        geom = r.c.geom
+        if simplify > 0:
+            geom = geom.ST_Simplify(r.c.geom.ST_NPoints()/int(simplify))
+        if geomtype == 'geojson' :
+            geom = geom.ST_AsGeoJSON()
         else:
-            pos.append(0.0)
-        for p in seg.coords[1:]:
-            pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)) * dist_fac)
-            xcoords.append(p[0])
-            ycoords.append(p[1])
+            geom = geom.ST_Transform(4326)
 
-        ele.add_segment(xcoords, ycoords, pos)
-        prev = (xcoords, ycoords, pos)
+        rows = [r.c.name, r.c.intnames, r.c.ref, r.c.id, geom.label('geom')]
 
-    return ele.as_dict()
+        obj = (await conn.execute(sa.select(*rows).where(r.c.id == oid))).first()
+
+        if obj is None:
+            raise falcon.HTTPNotFound()
+
+        RouteGeometry(obj, locales=locale, fmt=geomtype).to_response(req, resp)
+
+
+    @needs_db
+    async def on_get_elevation(self, conn, req, resp, oid):
+        segments = params.as_int(req, 'segments', default=100, vmin=1, vmax=500)
+
+        if self.context.dem is None:
+            raise falcon.HTTPNotFound()
+
+        r = self.context.db.tables.routes.data
+
+        sel = sa.select(gf.ST_Points(gf.ST_Collect(
+                             gf.ST_PointN(r.c.geom, 1),
+                             gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
+                        sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
+                               sa.text('\'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]\''))
+                        ).where(r.c.id == oid)\
+                .where(r.c.geom.ST_GeometryType() == 'ST_LineString')
+
+        res = (await conn.execute(sel)).first()
+
+        if res is not None:
+            geom = to_shape(res[0])
+            ele = RouteElevation(oid, self.context.dem, geom.bounds)
+
+            xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
+            geomlen = res[1]
+            pos = [geomlen*i/float(segments) for i in range(segments + 1)]
+
+            ele.add_segment(xcoord, ycoord, pos)
+
+            return ele.to_response(resp)
+
+        # special treatment for multilinestrings
+        sel = sa.select(r.c.geom,
+                        sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
+                                 'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
+                        r.c.geom.ST_NPoints(),
+                        gf.ST_Length(r.c.geom))\
+                    .where(r.c.id == oid)
+
+        res = (await conn.execute(sel)).first()
+
+        if res is None or res[0] is None:
+            raise falcon.HTTPNotFound()
+
+        geom = to_shape(res[0])
+        # Computing length in Mercator is slightly off, correct it via the
+        # actual length.
+        dist_fac = res[1]/res[3]
+        ele = RouteElevation(oid, self.context.dem, geom.bounds)
+
+        if res[2] > 10000:
+            geom = geom.simplify(res[2]/500, preserve_topology=False)
+        elif res[2] > 4000:
+            geom = geom.simplify(res[2]/1000, preserve_topology=False)
+
+        prev = None
+        for seg in geom.geoms:
+            p = seg.coords[0]
+            xcoords = [p[0]]
+            ycoords = [p[1]]
+            pos = []
+            if prev is not None:
+                pos.append(prev[2][-1] + \
+                        Point(prev[0][-1], prev[1][-1]).distance(Point(*p)) * dist_fac)
+            else:
+                pos.append(0.0)
+            for p in seg.coords[1:]:
+                pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)) * dist_fac)
+                xcoords.append(p[0])
+                ycoords.append(p[1])
+
+            ele.add_segment(xcoords, ycoords, pos)
+            prev = (xcoords, ycoords, pos)
+
+        return ele.to_response(resp)

@@ -1,15 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
+import asyncio
 
 import pytest
-import hug
 import falcon
 
-import wmt_api.api.details.relation as relation_api
-import wmt_api.api.details.way as way_api
-import wmt_api.api.details.wayset as wayset_api
+pytestmark = [pytest.mark.asyncio]
 
 
 GEOMETRY_SIMPLE = """\
@@ -20,19 +18,18 @@ GEOMETRY_MULTI = """\
 MULTILINESTRING((1069126.08187597 5962419.305238,1069131.87048949 5962405.88946843,1069140.25284715 5962400.24503497,1069156.30511772 5962398.11814795,1069169.05119941 5962394.32247395,1069172.90285379 5962390.33047376,1069179.61541909 5962381.8720204,1069185.07007414 5962374.23160635,1069191.86056308 5962366.47667475,1069209.28206339 5962365.28235045,1069224.55509752 5962366.44395353,1069256.43699969 5962370.32141845,1069283.61008739 5962364.69336867,1069305.8628536 5962367.31106579,1069327.62581405 5962368.14545691,1069337.85607525 5962365.87133228,1069347.60766265 5962359.21256787,1069356.98076377 5962341.33045672,1069359.06243825 5962320.65073264,1069355.4445548 5962294.08128586,1069350.81366398 5962274.33421877,1069351.69308796 5962267.26651385,1069360.05318172 5962261.21316003,1069377.64166126 5962250.25169221,1069401.17460162 5962225.9892685,1069415.12293381 5962218.54531525,1069423.90604164 5962215.5513754,1069437.60947095 5962215.37141184,1069447.9176558 5962214.43887343,1069458.64885471 5962215.37141184,1069468.31138651 5962216.74567915,1069479.69937042 5962222.8644434,1069491.74413932 5962233.72771457,1069510.835432 5962274.18697486),(1069524.96187538 5962305.61542613,1069531.74123237 5962314.7609468,1069543.69694568 5962318.29481783,1069555.24077687 5962314.36829455,1069570.51381101 5962306.76066075,1069586.61060938 5962293.08329713,1069595.01523093 5962276.78828432,1069608.94129923 5962260.55874366,1069616.63347605 5962251.70776699,1069630.73765553 5962245.27813524,1069665.12424624 5962229.76850875,1069681.20991265 5962227.19993403,1069690.72772912 5962214.79880052,1069706.29019393 5962190.58555647,1069738.87340889 5962162.62588752,1069803.9507832 5962090.93567806,1069828.50786287 5962074.03572153,1069862.22653663 5962060.14604321,1069929.49690492 5962043.13162647,1069951.14854588 5962040.05594699,1069964.31764164 5962040.08866698,1069976.60731342 5962043.78602649,1069980.10274543 5962053.63475287,1069986.29210912 5962061.61844622,1069990.7560207 5962067.54078085,1069996.03256457 5962074.95188484,1070002.43343529 5962080.33434622,1070006.17377018 5962085.14420814,1070009.04581304 5962100.52269606,1070010.55975812 5962104.84176563,1070012.90859937 5962106.88678039,1070015.03480165 5962109.55348035,1070015.94762147 5962115.19772529,1070015.27970453 5962120.97285506,1070018.86419213 5962126.12630271,1070018.86419213 5962129.15293211,1070017.16100392 5962130.80530861,1070014.3668847 5962130.98527043,1070010.54862617 5962131.7214779,1070006.81942323 5962134.82991011,1070003.92511646 5962135.35343565,1070000.83043462 5962134.20822358,1069997.06783583 5962132.32680408,1069993.99541789 5962134.53542701,1069992.32562552 5962137.36573721,1069990.32187469 5962140.09788724,1069989.72074944 5962144.22065417,1069988.3960475 5962150.65021127,1069992.32562552 5962154.11857482,1069992.21430603 5962159.76284867,1069994.68559873 5962162.38048416,1070002.77852571 5962168.139285,1070009.71372999 5962171.2804507,1070010.00316066 5962178.46259946,1070011.33899455 5962181.75101123,1070012.90859937 5962182.42178194))"""
 
 
-def check_elevation_response(oid, response):
-    assert response.status == falcon.HTTP_OK
-    assert response.data['id'] == oid
-    assert response.data['ascent'] > 0
-    assert response.data['descent'] > 0
+def check_elevation_response(oid, data):
+    assert data['id'] == oid
+    assert data['ascent'] > 0
+    assert data['descent'] > 0
 
-    endpos = response.data['end_position']
-    minele = response.data['min_elevation']
-    maxele = response.data['max_elevation']
+    endpos = data['end_position']
+    minele = data['min_elevation']
+    maxele = data['max_elevation']
 
-    assert response.data['segments']
+    assert data['segments']
 
-    for segment in response.data['segments']:
+    for segment in data['segments']:
         assert segment['elevation']
         for pt in segment['elevation']:
             assert 'x' in pt
@@ -69,16 +66,17 @@ def simple_route(conn, route_factory, hierarchy_table, route_geometry):
                          symbol='osmc_LOC_red_bar_white_003100340037_black',
                          country='li', level=3, top=True, intnames={}, network='')
 
-
-@pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
-def test_relation_elevation(simple_route):
+@pytest.mark.parametrize("mapname", ["hiking"], indirect=True)
+async def test_relation_elevation(wmt_call, simple_route):
     check_elevation_response(simple_route,
-                             hug.test.get(relation_api, '/elevation', oid=simple_route))
+                             (await wmt_call(f'/v1/details/relation/{simple_route}/elevation'))[1])
 
-@pytest.mark.parametrize("db", ["hiking", "slopes"], indirect=True)
-def test_relation_elevation_unknown(relations_table, route_table, hierarchy_table):
-    response = hug.test.get(relation_api, '/elevation', oid=111)
-    assert response.status == falcon.HTTP_NOT_FOUND
+
+@pytest.mark.parametrize("mapname", ["hiking"], indirect=True)
+async def test_relation_elevation_unknown(wmt_call, relations_table,
+                                          route_table, hierarchy_table):
+    status, _ = await wmt_call('/v1/details/relation/111/elevation', expect_success=False)
+    assert status == falcon.HTTP_NOT_FOUND
 
 
 @pytest.fixture
@@ -88,15 +86,18 @@ def simple_way(conn, way_factory):
                              "piste:type": "downhill"},
                        name='Guschg - Steg', ref='147')
 
-@pytest.mark.parametrize("db", ["slopes"], indirect=True)
-def test_way_elevation(simple_way):
-    check_elevation_response(simple_way,
-                             hug.test.get(way_api, '/elevation', oid=simple_way))
 
-@pytest.mark.parametrize("db", ["slopes"], indirect=True)
-def test_way_elevation_unknown(osm_ways_table, ways_table):
-    response = hug.test.get(way_api, '/elevation', oid=111)
-    assert response.status == falcon.HTTP_NOT_FOUND
+@pytest.mark.parametrize("mapname", ["slopes"], indirect=True)
+async def test_way_elevation(wmt_call, simple_way):
+    check_elevation_response(simple_way,
+                             (await wmt_call(f'/v1/details/way/{simple_way}/elevation'))[1])
+
+
+@pytest.mark.parametrize("mapname", ["slopes"], indirect=True)
+async def test_way_elevation_unknown(wmt_call, osm_ways_table, ways_table):
+    status, _ = await wmt_call('/v1/details/way/111/elevation', expect_success=False)
+    assert status == falcon.HTTP_NOT_FOUND
+
 
 @pytest.fixture
 def simple_wayset(conn, way_factory, joined_way_factory):
@@ -105,10 +106,10 @@ def simple_wayset(conn, way_factory, joined_way_factory):
 
     return joined_way_factory(82423, 82424)
 
-@pytest.mark.parametrize("db", ["slopes"], indirect=True)
-def test_wayset_elevation(simple_wayset):
+@pytest.mark.parametrize("mapname", ["slopes"], indirect=True)
+async def test_wayset_elevation(wmt_call, simple_wayset):
     check_elevation_response(simple_wayset,
-                             hug.test.get(wayset_api, '/elevation', oid=simple_wayset))
+                             (await wmt_call(f'/v1/details/wayset/{simple_wayset}/elevation'))[1])
 
 @pytest.fixture
 def simple_wayset_linear(conn, way_factory, joined_way_factory):
@@ -116,12 +117,13 @@ def simple_wayset_linear(conn, way_factory, joined_way_factory):
 
     return joined_way_factory(82423)
 
-@pytest.mark.parametrize("db", ["slopes"], indirect=True)
-def test_wayset_linear_elevation(simple_wayset_linear):
-    response = hug.test.get(wayset_api, '/elevation', oid=simple_wayset_linear)
-    check_elevation_response(simple_wayset_linear, response)
+@pytest.mark.parametrize("mapname", ["slopes"], indirect=True)
+async def test_wayset_linear_elevation(wmt_call, simple_wayset_linear):
+    check_elevation_response(simple_wayset_linear,
+                             (await wmt_call(f'/v1/details/wayset/{simple_wayset_linear}/elevation'))[1])
 
-@pytest.mark.parametrize("db", ["slopes"], indirect=True)
-def test_wayset_elevation_unknown(ways_table, joined_ways_table):
-    response = hug.test.get(wayset_api, '/elevation', oid=111)
-    assert response.status == falcon.HTTP_NOT_FOUND
+
+@pytest.mark.parametrize("mapname", ["slopes"], indirect=True)
+async def test_wayset_elevation_unknown(wmt_call, ways_table, joined_ways_table):
+    status, _ = await wmt_call('/v1/details/wayset/111/elevation', expect_success=False)
+    assert status == falcon.HTTP_NOT_FOUND
