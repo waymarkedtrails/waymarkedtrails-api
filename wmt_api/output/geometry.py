@@ -3,7 +3,6 @@
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2024 Sarah Hoffmann
 
-import hug
 from slugify import slugify
 import xml.etree.ElementTree as ET
 from datetime import datetime

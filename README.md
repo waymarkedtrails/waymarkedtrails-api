@@ -16,6 +16,8 @@ The API depends on the following packages:
  * [falcon](https://falconframework.org/)
  * [osgende](https://github.com/waymarkedtrails/osgende)
  * [waymarkedtrails-backend](https://github.com/waymarkedtrails/waymarkedtrails-backend)
+ * [psycopg3](https://www.psycopg.org/psycopg3/)
+ * [aoifiles](https://pypi.org/project/aiofiles/)
 
 For the elevation profiles these additional packages are needed:
 
