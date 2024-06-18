@@ -1,8 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2023 Sarah Hoffmann
+# Copyright (C) 2024 Sarah Hoffmann
 
+import sqlalchemy as sa
+from geoalchemy2 import Geometry
 
 class Bbox:
 
@@ -14,8 +16,9 @@ class Bbox:
 
 
     def as_sql(self):
-        return 'SRID=3857;POLYGON(({0} {1},{0} {3},{2} {3},{2} {1},{0} {1}))'\
-                  .format(self.minx, self.miny, self.maxx, self.maxy)
+        return sa.type_coerce('SRID=3857;POLYGON(({0} {1},{0} {3},{2} {3},{2} {1},{0} {1}))'
+                               .format(self.minx, self.miny, self.maxx, self.maxy),
+                              Geometry)
 
 
     def write_json(self, writer):
