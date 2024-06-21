@@ -40,7 +40,7 @@ class APITiles(Router):
                       q.c.child_relations, q.c.shields,
                       q.c.style, q.c['class'],
                       q.c.geometry.ST_AsGeoJSON().label('geometry'))\
-              .where(q.c.geometry.ST_GeometryType() == 'ST_LineString')\
+              .where(q.c.geometry.ST_GeometryType().in_(('ST_LineString', 'ST_MultiLineString')))\
               .where(sa.not_(q.c.geometry.ST_IsEmpty()))
 
         elements = list(await conn.execute(q))
