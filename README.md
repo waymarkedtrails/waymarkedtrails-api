@@ -36,6 +36,15 @@ The wmt_api pacckage can simply be installed with pip:
 
     pip install .
 
+Adding indexes for faster search
+================================
+
+The search API uses a trigram search for fuzzy searching. You can speed this
+up by creating an index, e.g. for hiking routes:
+
+```
+CREATE INDEX idx_route_trgrm ON hiking.routes USING GIST ((name || jsonb_path_query_array(intnames, '$.*')) gist_trgm_ops);
+```
 
 Running the API
 ===============
