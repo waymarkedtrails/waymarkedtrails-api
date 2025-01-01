@@ -174,9 +174,9 @@ class RouteElevation:
         for x, y, ele, p in zip(xcoord, ycoord, elev, pos):
             elepoints.append(OrderedDict(x=x, y=y, ele=float(ele), pos=p))
             if ele < (self.elevation['min_elevation'] or 10000):
-                self.elevation['min_elevation'] = ele
+                self.elevation['min_elevation'] = float(ele)
             if ele > (self.elevation['max_elevation'] or -10000):
-                self.elevation['max_elevation'] = ele
+                self.elevation['max_elevation'] = float(ele)
 
         if pos[-1] > self.elevation['end_position']:
             self.elevation['end_position'] = pos[-1]
