@@ -53,15 +53,14 @@ class APIDetailsRelation(Router):
 
         # add subroutes where applicable
         if row.relation_ids:
+            w = sa.select(h.c.child).distinct()\
+                     .where(h.c.parent == oid)
+
             sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))\
-                                            .where(r.c.id.in_(row.relation_ids)))
+                                            .where(r.c.id != oid).where(r.c.id.in_(w)))
 
-            # Make sure subroutes appear in the order of the relation.
-            subs = { s.id: s for s in sections}
-            res.add_extra_route_info('subroutes',
-                                     (subs[oid] for oid in row.relation_ids if oid in subs),
-                                     locale)
-
+            if sections.rowcount > 0:
+                res.add_extra_route_info('subroutes', sections, locale)
 
         # add superroutes where applicable
         w = sa.select(h.c.parent).distinct()\

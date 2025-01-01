@@ -27,7 +27,7 @@ def _get_network(row):
 class RouteItem:
 
     _columns = ('id', 'name', 'intnames', 'symbol', 'level', 'ref',
-                'piste', 'network', 'itinerary')
+                'piste', 'network', 'itinerary', 'route')
 
     @classmethod
     def make_selectables(cls, table):
@@ -82,8 +82,6 @@ class DetailedRouteItem(RouteItem):
         if 'level' not in table.c and 'piste' in table.c:
             fields.append(table.c.piste)
 
-        fields.append(sa.func.ST_Length(sa.func.ST_Transform(table.c.geom, 4326)
-                                          .cast(Geography)).label('length'))
         fields.append(table.c.geom.ST_Envelope().label('bbox'))
         fields.append(rel_table.c.tags)
 
@@ -96,7 +94,6 @@ class DetailedRouteItem(RouteItem):
     def _add_details(self, row, locales):
         loctags = TagStore.make_localized(row.tags, locales)
 
-        self.out.keyval('mapped_length', row.length)
         self._add_optional('official_length', row, None,
                            loctags.get_length('distance', 'length', unit='m'))
 
@@ -109,12 +106,15 @@ class DetailedRouteItem(RouteItem):
         self.out.keyval('bbox', to_shape(row.bbox).bounds)
         self.out.keyval('tags', row.tags)
 
+        self.out.key('route').raw(row.route).next()
+
 
     def add_extra_route_info(self, key, routes, locales=[]):
-        self.out.key(key).start_array()
+        self.out.key(key).start_object()
 
         for route in routes:
+            self.out.key(str(route.id))
             RouteItem(self.out, route, locales).finish()
             self.out.next()
 
-        self.out.end_array().next()
+        self.out.end_object().next()
