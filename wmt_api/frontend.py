@@ -15,6 +15,7 @@ from .api.symbols import APISymbols
 
 async def print_traceback(req, resp, ex, params):
     traceback.print_exception(ex)
+    raise falcon.HTTPError(falcon.HTTP_500)
 
 async def api_error_handler(req, resp, exception, _):
     """ Special error handler that passes message and content type as
