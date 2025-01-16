@@ -132,6 +132,13 @@ def ways_table(db, context):
 
 
 @pytest.fixture
+def relway_table(db, context):
+    if 'relway' in context.db.tables:
+        context.db.tables.relway.data.create(db)
+        return context.db.tables.relway
+
+
+@pytest.fixture
 def joined_ways_table(db, context):
     if 'joined_ways' in context.db.tables:
         context.db.tables.joined_ways.data.create(db)
@@ -178,6 +185,24 @@ def way_factory(conn, osm_ways_table, ways_table):
         return oid
 
     return None if ways_table is None else factory
+
+
+@pytest.fixture
+def relway_factory(conn, osm_ways_table, relway_table):
+    def factory(oid, geom, **kwargs):
+        conn.execute(osm_ways_table.data.insert()
+            .values(dict(id=oid, tags=kwargs.get('tags', {}),
+                         nodes=kwargs.get('nodes', [1, 2, 3, 4]))))
+
+        values = dict(intnames={}, network='', top=True)
+        values.update(kwargs)
+        values['id'] = oid
+        values['geom'] = f'SRID=3857;{geom}'
+        values = { k: v for k, v in values.items() if k in relway_table.data.c }
+        conn.execute(relway_table.data.insert().values(values))
+        return oid
+
+    return None if relway_table is None else factory
 
 
 @pytest.fixture

@@ -6,6 +6,7 @@ import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2.shape import to_shape
+from geoalchemy2 import Geography
 from shapely.geometry import Point, LineString
 
 from ...common import params
@@ -15,8 +16,27 @@ from ...common.router import Router, needs_db
 from ...output.wikilink import get_wikipedia_link
 from ...output.route_item import DetailedRouteItem, RouteItem
 from ...output.geometry import RouteGeometry
-from ...output.elevation import RouteElevation
+from ...output.elevation import RouteElevation, SegmentElevation
 
+class Bbox:
+    def __init__(self):
+        self.minx = 30000000
+        self.maxx = -30000000
+        self.miny = 30000000
+        self.maxy = -30000000
+
+    def expand(self, minx, miny, maxx, maxy):
+        if minx < self.minx:
+            self.minx = minx
+        if maxx > self.maxx:
+            self.maxx = maxx
+        if miny < self.miny:
+            self.miny = miny
+        if maxy > self.maxy:
+            self.maxy = maxy
+
+    def bounds(self):
+        return (self.minx, self.miny, self.maxx, self.maxy)
 
 class APIDetailsRelation(Router):
 
@@ -26,6 +46,7 @@ class APIDetailsRelation(Router):
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/geometry/{geomtype}', self, suffix='geometry')
         app.add_route(base + '/elevation', self, suffix='elevation')
+        app.add_route(base + '/way-elevation', self, suffix='way_elevation')
 
 
     @needs_db
@@ -192,5 +213,64 @@ class APIDetailsRelation(Router):
 
             ele.add_segment(xcoords, ycoords, pos)
             prev = (xcoords, ycoords, pos)
+
+        return ele.to_response(resp)
+
+
+    @needs_db
+    async def on_get_way_elevation(self, conn, req, resp, oid):
+        max_segment_len = params.as_int(req, 'simplify',  default=0, vmin=2)
+        step = max(max_segment_len/10, min(max_segment_len, 50))
+
+        if self.context.dem is None:
+            raise falcon.HTTPNotFound()
+
+        h = self.context.db.tables.hierarchy.data
+        s = self.context.db.tables.relway.data
+
+        rels = sa.select(h.c.child).where(h.c.parent == oid)\
+                 .union(sa.select(oid))\
+                 .scalar_subquery()
+
+        sql = sa.select(s.c.id,
+                        s.c.geom.ST_PointN(1).label('first'),
+                        s.c.geom.ST_PointN(-1).label('last'),
+                        s.c.geom.ST_Transform(4326).label('geom'))\
+                .where(s.c.rels.overlap(sa.func.array(rels)))\
+                .subquery()
+
+        sql = sa.select(sql.c.id, sql.c.first, sql.c.last, sql.c.geom,
+                        gf.ST_Length(sa.cast(sql.c.geom, Geography)).label('len'))\
+                .subquery()
+
+        sql = sa.select(sql.c.id, sql.c.len, sql.c.first, sql.c.last,
+                        sa.case((sql.c.len < (step * 1.1), None),
+                                else_=sql.c.geom.ST_LineInterpolatePoints(step/sql.c.len))
+                                           .ST_Transform(3857).label('mid'))
+
+        ways = []
+        bbox = Bbox()
+        for row in await conn.execute(sql):
+            first = to_shape(row.first)
+            x = [first.x]
+            y = [first.y]
+            if row.mid:
+                mid = to_shape(row.mid)
+                if mid.geom_type == 'Point':
+                    x.append(mid.x)
+                    y.append(mid.y)
+                else:
+                    for pt in mid.geoms:
+                        x.append(pt.x)
+                        y.append(pt.y)
+            last = to_shape(row.last)
+            x.append(last.x)
+            y.append(last.y)
+            bbox.expand(min(x), min(y), max(x), max(y))
+            ways.append({'sid': row.id, 'length': row.len, 'x': x, 'y': y})
+
+        ele = SegmentElevation(self.context.dem, bbox.bounds(), max_segment_len=max_segment_len)
+        for w in ways:
+            ele.add_segment(step=step, **w)
 
         return ele.to_response(resp)

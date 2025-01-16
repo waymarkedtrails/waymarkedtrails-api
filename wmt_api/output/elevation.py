@@ -18,8 +18,12 @@ def round_elevation(ele, base=5):
 
 #
 # Code from http://stackoverflow.com/questions/5515720/python-smooth-time-series-data
+# and https://stackoverflow.com/questions/9537543/replace-nans-in-numpy-array-with-closest-non-nan-value
 #
-def smooth_list(x, window_len=7, window='hanning'):
+def smooth_and_fill_list(x, window_len=7, window='hanning'):
+    mask = numpy.isnan(x)
+    x[mask] = numpy.interp(numpy.flatnonzero(mask), numpy.flatnonzero(~mask), x[~mask])
+
     if len(x) <= window_len:
         return x
 
@@ -166,7 +170,7 @@ class RouteElevation:
         # Interpolate elevation values
         # map_coordinates does cubic interpolation by default, 
         # use "order=1" to preform bilinear interpolation
-        elev = smooth_list(map_coordinates(self.band_array, [yi, xi], order=1))
+        elev = smooth_and_fill_list(map_coordinates(self.band_array, [yi, xi], order=1))
 
         self._add_ascent(elev)
 
@@ -182,4 +186,87 @@ class RouteElevation:
             self.elevation['end_position'] = pos[-1]
 
         self.elevation['segments'].append({'elevation' : elepoints})
+
+
+class SegmentElevation:
+    """ Collect and format the elevation profile for a single route.
+    """
+    MAX_DEVIATION = 5
+
+    def __init__(self, dem_file, bounds, max_segment_len=500):
+        self.max_segment_len = max_segment_len
+        self.min_ele = None
+        self.max_ele = None
+        self.segments = {}
+        dem = Dem(str(dem_file.resolve()))
+        self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
+                                                    dem.raster_array(bounds)
+
+    def to_response(self, response):
+        response.status = 200
+        response.content_type = falcon.MEDIA_JSON
+        response.text = json.dumps({'min_elevation': self.min_ele,
+                                    'max_elevation': self.max_ele,
+                                    'segments': self.segments})
+
+
+    def _sum_and_filter(self, xs, ys, eles, step, total):
+        max_steps = int(self.max_segment_len/step)
+        start = None
+        start_ele = None
+
+        for i, x, y, ele in zip(range(len(xs)), xs, ys, eles):
+            ele = float(ele)
+            if ele < (self.min_ele or 10000):
+                self.min_ele = ele
+            if ele > (self.max_ele or -10000):
+                self.max_ele = ele
+
+            if start is None:
+                start = 0
+                start_ele = ele
+                yield x, y, start_ele, 0
+            else:
+                is_last = i == len(xs) - 1
+                if is_last or i >= start + max_steps or \
+                   numpy.max(numpy.abs(numpy.linspace(start_ele, ele, i - start + 1)
+                                        - eles[start:i + 1])) > self.MAX_DEVIATION:
+                    start = i
+                    start_ele = ele
+                    yield x, y, start_ele, total if is_last else i * step
+
+    def add_segment(self, sid, x, y, length, step):
+        """ Add a continuous piece of route to the elevation outout.
+        """
+        # Turn these into arrays of x & y coords
+        xi = numpy.array(x, dtype=float)
+        yi = numpy.array(y, dtype=float)
+
+        # Now, we'll set points outside the boundaries to lie along an edge
+        xi[xi > self.xmax] = self.xmax
+        xi[xi < self.xmin] = self.xmin
+        yi[yi > self.ymax] = self.ymax
+        yi[yi < self.ymin] = self.ymin
+
+        # We need to convert these to (float) indicies
+        #   (xi should range from 0 to (nx - 1), etc)
+        ny, nx = self.band_array.shape
+        xi = (nx - 1) * (xi - self.xmin) / (self.xmax - self.xmin)
+        yi = -(ny - 1) * (yi - self.ymax) / (self.ymax - self.ymin)
+
+        # Interpolate elevation values
+        # map_coordinates does cubic interpolation by default, 
+        # use "order=1" to preform bilinear interpolation
+        elev = smooth_and_fill_list(map_coordinates(self.band_array, [yi, xi], order=1))
+
+        elepoints = []
+        for x, y, ele, p in self._sum_and_filter(x, y, elev, step, length):
+            elepoints.append({'x': round(x, 2), 'y': round(y, 2),
+                              'ele': int(ele), 'pos': round(p, 2)})
+            if ele < (self.min_ele or 10000):
+                self.min_ele = ele
+            if ele > (self.max_ele or -10000):
+                self.max_ele = ele
+
+        self.segments[str(sid)] = {'elevation' : elepoints}
 
