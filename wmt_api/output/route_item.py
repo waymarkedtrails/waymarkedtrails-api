@@ -27,7 +27,7 @@ def _get_network(row):
 class RouteItem:
 
     _columns = ('id', 'name', 'intnames', 'symbol', 'level', 'ref',
-                'piste', 'network', 'itinerary', 'route')
+                'piste', 'network', 'itinerary', 'linear')
 
     @classmethod
     def make_selectables(cls, table):
@@ -55,6 +55,7 @@ class RouteItem:
             self._add_optional('name', row, 'name')
 
         self.out.keyval('group', _get_network(row))
+        self.out.keyval('linear', row.linear)
         self._add_optional('symbol_description', row, None,
                            row.intnames.get('symbol'))
 
@@ -82,6 +83,7 @@ class DetailedRouteItem(RouteItem):
         if 'level' not in table.c and 'piste' in table.c:
             fields.append(table.c.piste)
 
+        fields.append(table.c.route)
         fields.append(table.c.geom.ST_Envelope().label('bbox'))
         fields.append(rel_table.c.tags)
 
@@ -94,6 +96,7 @@ class DetailedRouteItem(RouteItem):
     def _add_details(self, row, locales):
         loctags = TagStore.make_localized(row.tags, locales)
 
+        self.out.keyval('linear', row.linear)
         self._add_optional('official_length', row, None,
                            loctags.get_length('distance', 'length', unit='m'))
 
