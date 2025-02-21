@@ -17,7 +17,7 @@ from ...common.json_writer import JsonWriter
 from ...output.route_item import DetailedRouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.geometry import RouteGeometry
-from ...output.elevation import RouteElevation
+from ...output.elevation import SegmentElevation, get_way_elevation_data
 
 class APIDetailsWayset(Router):
 
@@ -26,7 +26,7 @@ class APIDetailsWayset(Router):
         app.add_route(base, self, suffix='info')
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/geometry/{geomtype}', self, suffix='geometry')
-        app.add_route(base + '/elevation', self, suffix='elevation')
+        app.add_route(base + '/way-elevation', self, suffix='way_elevation')
 
 
     @needs_db
@@ -115,66 +115,26 @@ class APIDetailsWayset(Router):
 
 
     @needs_db
-    async def on_get_elevation(self, conn, req, resp, oid):
-        segments = params.as_int(req, 'segments', default=100, vmin=1, vmax=500)
+    async def on_get_way_elevation(self, conn, req, resp, oid):
+        max_segment_len = params.as_int(req, 'simplify',  default=0, vmin=2)
+        step = max(max_segment_len/10, min(max_segment_len, 50))
 
         if self.context.dem is None:
-            raise falcon.HTTPNotFound()
+            raise falcon.HTTPRouteNotFound()
 
         w = self.context.db.tables.ways.data
         ws = self.context.db.tables.joined_ways.data
 
-        sql = sa.select(gf.ST_LineMerge(gf.ST_Collect(w.c.geom)).label('geom'))\
-                .join(ws, w.c.id == ws.c.child)\
-                .where(ws.c.id == oid)\
-                .alias()
+        ways, bbox = await get_way_elevation_data(conn, w.c.id, w.c.geom,
+                                                  sa.and_(w.c.id == ws.c.child,
+                                                          ws.c.id == oid),
+                                                  step)
 
-        sel = sa.select(sql.c.geom,
-                        sa.literal_column("""ST_Length2dSpheroid(ST_MakeLine(ARRAY[ST_Points(ST_Transform(geom,4326))]),
-                                'SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY["EPSG",\"7030\"]]')"""),
-                        sql.c.geom.ST_NPoints(),
-                        gf.ST_Length(sql.c.geom))
-
-        res = (await conn.execute(sel)).first()
-
-        if res is None or res[0] is None:
+        if not ways:
             raise falcon.HTTPNotFound()
 
-        geom = to_shape(res[0])
-        # Computing length in Mercator is slightly off, correct it via the
-        # actual length.
-        dist_fac = res[1]/res[3]
+        ele = SegmentElevation(self.context.dem, bbox, max_segment_len=max_segment_len)
+        for way in ways:
+            ele.add_segment(step=step, **way)
 
-        ele = RouteElevation(oid, self.context.dem, geom.bounds)
-
-        if res[2] > 10000:
-            geom = geom.simplify(res[2]/500, preserve_topology=False)
-        elif res[2] > 4000:
-            geom = geom.simplify(res[2]/1000, preserve_topology=False)
-
-        if geom.geom_type == 'LineString':
-            geom_list = [geom]
-        else:
-            geom_list = geom.geoms
-
-        prev = None
-        for seg in geom_list:
-            p = seg.coords[0]
-            xcoords = array('d', [p[0]])
-            ycoords = array('d', [p[1]])
-            pos = array('d')
-            if prev is not None:
-                pos.append(prev[2][-1] + \
-                        Point(prev[0][-1], prev[1][-1]).distance(Point(*p)) * dist_fac)
-            else:
-                pos.append(0.0)
-            for p in seg.coords[1:]:
-                pos.append(pos[-1] + Point(xcoords[-1], ycoords[-1]).distance(Point(*p)) * dist_fac)
-                xcoords.append(p[0])
-                ycoords.append(p[1])
-
-            ele.add_segment(xcoords, ycoords, pos)
-            prev = (xcoords, ycoords, pos)
-
-        ele.to_response(resp)
-
+        return ele.to_response(resp)

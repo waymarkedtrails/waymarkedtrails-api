@@ -41,27 +41,20 @@ async def test_info(wmt_call, simple_route, language_names):
     assert 'ref' not in data
 
 
-@pytest.mark.parametrize('htype', ['superroutes', 'subroutes'])
 async def test_info_with_superroute(wmt_call, conn, simple_route,
                                     route_factory, hierarchy_table,
-                                    relations_table, htype):
+                                    relations_table):
     route_factory(44, 'LINESTRING(0 0, 100 100)', name='Super')
 
-    if htype == 'superroutes':
-        conn.execute(hierarchy_table.data.insert()
-                       .values({'parent': 44, 'child': simple_route, 'depth': 2}))
-    else:
-        r = relations_table.data
-        conn.execute(r.delete().where(r.c.id == simple_route))
-        conn.execute(r.insert()
-                       .values({'id': simple_route, 'tags': {'type': 'route'}, 'members': [{'id': 44, 'role': '', 'type': 'R'}]}))
+    conn.execute(hierarchy_table.data.insert()
+                   .values({'parent': 44, 'child': simple_route, 'depth': 2}))
 
     _, data = await wmt_call(f'/v1/details/relation/{simple_route}')
 
-    assert htype in data
-    assert len(data[htype]) == 1
+    assert 'superroutes' in data
+    assert len(data['superroutes']) == 1
 
-    rdata = data[htype][0]
+    rdata = data['superroutes']['44']
 
     assert rdata['id'] == 44
     assert rdata['name'] == 'Super'

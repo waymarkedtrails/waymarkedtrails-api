@@ -2,7 +2,7 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2012-2013 Espen Oldeman Lund
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import json
 from math import ceil, fabs
 from collections import OrderedDict
@@ -11,6 +11,32 @@ from osgeo import gdal
 import numpy
 import falcon
 from scipy.ndimage import map_coordinates
+import sqlalchemy as sa
+import geoalchemy2.functions as gf
+from geoalchemy2.shape import to_shape
+from geoalchemy2 import Geography
+from shapely.geometry import Point, LineString
+
+class Bbox:
+    def __init__(self):
+        self.minx = 30000000
+        self.maxx = -30000000
+        self.miny = 30000000
+        self.maxy = -30000000
+
+    def expand(self, minx, miny, maxx, maxy):
+        if minx < self.minx:
+            self.minx = minx
+        if maxx > self.maxx:
+            self.maxx = maxx
+        if miny < self.miny:
+            self.miny = miny
+        if maxy > self.maxy:
+            self.maxy = maxy
+
+    def bounds(self):
+        return (self.minx, self.miny, self.maxx, self.maxy)
+
 
 def round_elevation(ele, base=5):
     return int(base * round(float(ele)/base))
@@ -36,6 +62,47 @@ def smooth_and_fill_list(x, window_len=7, window='hanning'):
     y = numpy.convolve(w/w.sum(), s, mode='same')
 
     return y[window_len:-window_len+1]
+
+
+async def get_way_elevation_data(conn, id_col, geom_col, where, step):
+    sql = sa.select(id_col,
+                    geom_col.ST_PointN(1).label('first'),
+                    geom_col.ST_PointN(-1).label('last'),
+                    geom_col.ST_Transform(4326).label('geom'))\
+            .where(where)\
+            .subquery()
+
+    sql = sa.select(sql.c.id, sql.c.first, sql.c.last, sql.c.geom,
+                    gf.ST_Length(sa.cast(sql.c.geom, Geography)).label('len'))\
+            .subquery()
+
+    sql = sa.select(sql.c.id, sql.c.len, sql.c.first, sql.c.last,
+                    sa.case((sql.c.len < (step * 1.1), None),
+                            else_=sql.c.geom.ST_LineInterpolatePoints(step/sql.c.len))
+                                       .ST_Transform(3857).label('mid'))
+
+    ways = []
+    bbox = Bbox()
+    for row in await conn.execute(sql):
+        first = to_shape(row.first)
+        x = [first.x]
+        y = [first.y]
+        if row.mid:
+            mid = to_shape(row.mid)
+            if mid.geom_type == 'Point':
+                x.append(mid.x)
+                y.append(mid.y)
+            else:
+                for pt in mid.geoms:
+                    x.append(pt.x)
+                    y.append(pt.y)
+        last = to_shape(row.last)
+        x.append(last.x)
+        y.append(last.y)
+        bbox.expand(min(x), min(y), max(x), max(y))
+        ways.append({'sid': row.id, 'length': row.len, 'x': x, 'y': y})
+
+    return ways, bbox.bounds()
 
 
 class Dem:
@@ -87,107 +154,6 @@ class Dem:
         return xout, yout
 
 
-class RouteElevation:
-    """ Collect and format the elevation profile for a single route.
-    """
-    def __init__(self, oid, dem_file, bounds):
-        self.elevation = OrderedDict(id=oid, ascent=0, descent=0,
-                                     end_position=0,
-                                     min_elevation=None, max_elevation=None,
-                                     segments=[])
-        dem = Dem(str(dem_file.resolve()))
-        self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
-                                                    dem.raster_array(bounds)
-
-    def to_response(self, response):
-        response.status = 200
-        response.content_type = falcon.MEDIA_JSON
-        response.text = json.dumps(self.elevation)
-
-    def _add_ascent(self, elev):
-        """ Calculate accumulated ascent and descent.
-            Slightly complicated by the fact that we have to jump over voids.
-        """
-        accuracy = 15
-        former_height = None
-        first_valid = None
-        last_valid = None
-        accumulated_ascent = 0
-        for x in range (1, len(elev)-1):
-            current_height = elev[x]
-            if not numpy.isnan(current_height):
-                last_valid = current_height
-                if former_height is None:
-                    former_height = current_height
-                    first_valid = current_height
-                else:
-                    if (elev[x-1] < current_height > elev[x+1]) or \
-                            (elev[x-1] > current_height < elev[x+1]):
-                        diff = current_height - former_height
-                        if fabs(diff) > accuracy:
-                            if diff > accuracy:
-                                accumulated_ascent += diff
-                            former_height = current_height
-                        else:
-                            former_height = min(former_height, current_height)
-
-        if last_valid is None:
-            # looks like the route is completely within a void
-            return
-
-        # collect the final point
-        diff = last_valid - former_height
-        if diff > accuracy:
-            accumulated_ascent += diff
-
-        if accumulated_ascent == 0 and last_valid > first_valid:
-            accumulated_ascent = last_valid - first_valid
-
-        self.elevation['ascent'] += round_elevation(accumulated_ascent)
-        self.elevation['descent'] += max(0, round_elevation(accumulated_ascent
-                                                     - (last_valid - first_valid)))
-
-
-    def add_segment(self, xcoord, ycoord, pos):
-        """ Add a continuous piece of route to the elevation outout.
-        """
-        # Turn these into arrays of x & y coords
-        xi = numpy.array(xcoord, dtype=float)
-        yi = numpy.array(ycoord, dtype=float)
-
-        # Now, we'll set points outside the boundaries to lie along an edge
-        xi[xi > self.xmax] = self.xmax
-        xi[xi < self.xmin] = self.xmin
-        yi[yi > self.ymax] = self.ymax
-        yi[yi < self.ymin] = self.ymin
-
-        # We need to convert these to (float) indicies
-        #   (xi should range from 0 to (nx - 1), etc)
-        ny, nx = self.band_array.shape
-        xi = (nx - 1) * (xi - self.xmin) / (self.xmax - self.xmin)
-        yi = -(ny - 1) * (yi - self.ymax) / (self.ymax - self.ymin)
-
-        # Interpolate elevation values
-        # map_coordinates does cubic interpolation by default, 
-        # use "order=1" to preform bilinear interpolation
-        elev = smooth_and_fill_list(map_coordinates(self.band_array, [yi, xi], order=1))
-
-        self._add_ascent(elev)
-
-        elepoints = []
-        for x, y, ele, p in zip(xcoord, ycoord, elev, pos):
-            elepoints.append(OrderedDict(x=x, y=y, ele=float(ele), pos=p))
-            if ele < (self.elevation['min_elevation'] or 10000):
-                self.elevation['min_elevation'] = float(ele)
-            if ele > (self.elevation['max_elevation'] or -10000):
-                self.elevation['max_elevation'] = float(ele)
-
-        if pos[-1] > self.elevation['end_position']:
-            self.elevation['end_position'] = pos[-1]
-
-        self.elevation['segments'].append({'elevation' : elepoints})
-
-
 class SegmentElevation:
     """ Collect and format the elevation profile for a single route.
     """
@@ -205,8 +171,8 @@ class SegmentElevation:
     def to_response(self, response):
         response.status = 200
         response.content_type = falcon.MEDIA_JSON
-        response.text = json.dumps({'min_elevation': self.min_ele,
-                                    'max_elevation': self.max_ele,
+        response.text = json.dumps({'min_elevation': int(self.min_ele),
+                                    'max_elevation': int(self.max_ele),
                                     'segments': self.segments})
 
 

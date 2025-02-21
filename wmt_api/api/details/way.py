@@ -14,7 +14,7 @@ from ...common.json_writer import JsonWriter
 from ...output.route_item import DetailedRouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.geometry import RouteGeometry
-from ...output.elevation import RouteElevation
+from ...output.elevation import SegmentElevation, get_way_elevation_data
 
 class APIDetailsWay(Router):
 
@@ -23,7 +23,7 @@ class APIDetailsWay(Router):
         app.add_route(base, self, suffix='info')
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/geometry/{geomtype}', self, suffix='geometry')
-        app.add_route(base + '/elevation', self, suffix='elevation')
+        app.add_route(base + '/way-elevation', self, suffix='way_elevation')
 
 
     @needs_db
@@ -32,9 +32,7 @@ class APIDetailsWay(Router):
         r = self.context.db.tables.ways.data
         o = self.context.db.osmdata.way.data
 
-        sql = sa.select(*DetailedRouteItem.make_selectables(r, o))\
-                                .where(r.c.id == oid)\
-                                .join(o, o.c.id == r.c.id)
+        sql = sa.select(*DetailedRouteItem.make_selectables(r)).where(r.c.id == oid)
 
         row = (await conn.execute(sql)).first()
 
@@ -90,33 +88,23 @@ class APIDetailsWay(Router):
 
 
     @needs_db
-    async def on_get_elevation(self, conn, req, resp, oid):
-        segments = params.as_int(req, 'segments', default=100, vmin=1, vmax=500)
+    async def on_get_way_elevation(self, conn, req, resp, oid):
+        max_segment_len = params.as_int(req, 'simplify',  default=0, vmin=2)
+        step = max(max_segment_len/10, min(max_segment_len, 50))
 
         if self.context.dem is None:
+            raise falcon.HTTPRouteNotFound()
+
+        s = self.context.db.tables.ways.data
+
+        ways, bbox = await get_way_elevation_data(conn, s.c.id, s.c.geom,
+                                                  s.c.id == oid, step)
+
+        if not ways:
             raise falcon.HTTPNotFound()
 
-        r = self.context.db.tables.ways.data
+        ele = SegmentElevation(self.context.dem, bbox, max_segment_len=max_segment_len)
+        for w in ways:
+            ele.add_segment(step=step, **w)
 
-        sel = sa.select(gf.ST_Points(gf.ST_Collect(
-                             gf.ST_PointN(r.c.geom, 1),
-                             gf.ST_LineInterpolatePoints(r.c.geom, 1.0/segments))),
-                        sa.func.ST_Length2dSpheroid(gf.ST_Transform(r.c.geom, 4326),
-                               sa.text('\'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]\''))
-                       ).where(r.c.id == oid)
-
-        res = (await conn.execute(sel)).first()
-
-        if res is None:
-            raise falcon.HTTPNotFound()
-
-        geom = to_shape(res[0])
-        ele = RouteElevation(oid, self.context.dem, geom.bounds)
-
-        xcoord, ycoord = zip(*((p.x, p.y) for p in geom.geoms))
-        geomlen = res[1]
-        pos = [geomlen*i/float(segments) for i in range(segments + 1)]
-
-        ele.add_segment(xcoord, ycoord, pos)
-
-        ele.to_response(resp)
+        return ele.to_response(resp)

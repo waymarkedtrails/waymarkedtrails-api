@@ -16,6 +16,7 @@ from wmt_api.common.context import Context
 
 TEST_DATABASE = 'test_wmt_api'
 
+SIMPLEROUTE = '{"route_type":"route","length":10,"linear":"yes","start":0,"main":[{"route_type":"linear","start":0,"length":10,"ways":[{"route_type":"base","start":0,"id":1,"tags":{},"length":10,"direction":0,"role":"","geometry":{"type":"LineString","coordinates":[[10.00,30.00],[10.00,32.00],[10.00,34.00]]}}]}],"appendices":[]}'
 
 @pytest.fixture()
 def mapname(request):
@@ -222,7 +223,8 @@ def route_factory(conn, relations_table, route_table):
             .values(dict(id=oid, tags=kwargs.get('tags', {}),
                          members=kwargs.get('members', [dict(id=1, type='W', role='')]))))
 
-        values = dict(intnames={}, country='de', network='', level=0, top=True)
+        values = dict(intnames={}, country='de', network='', level=0, top=True,
+                      route=SIMPLEROUTE, linear='yes')
         values.update(kwargs)
         values['id'] = oid
         values['geom'] = f'SRID=3857;{geom}'

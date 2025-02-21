@@ -78,14 +78,14 @@ class RouteItem:
 class DetailedRouteItem(RouteItem):
 
     @classmethod
-    def make_selectables(cls, table, rel_table):
+    def make_selectables(cls, table):
         fields = [ table.c[col] for col in cls._columns if col in table.c]
         if 'level' not in table.c and 'piste' in table.c:
             fields.append(table.c.piste)
 
         fields.append(table.c.route)
         fields.append(table.c.geom.ST_Envelope().label('bbox'))
-        fields.append(rel_table.c.tags)
+        fields.append(table.c.tags)
 
         return fields
 
