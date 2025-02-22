@@ -35,6 +35,20 @@ async def test_info(wmt_call, simple_way, language_names):
     assert data['id'] == simple_way
     assert data['name'] == language_names[1]
 
+    route = data['route']
+    assert route['route_type'] == 'route'
+    assert isinstance(route['main'], list)
+    assert len(route['main']) == 1
+    main = route['main'][0]
+    assert main['route_type'] == 'linear'
+    assert isinstance(main['ways'], list)
+    assert len(main['ways']) == 1
+    way = main['ways'][0]
+    assert way['route_type'] == 'base'
+    assert way['tags'] == {'this' : 'that', 'me': 'you'}
+    assert way['id'] == 458374
+
+
 
 async def test_info_unknown(wmt_call, osm_ways_table, ways_table, joined_ways_table):
     status, _ = await wmt_call('/v1/details/wayset/11', expect_success=False)
@@ -72,10 +86,10 @@ async def test_wikilink_unknown(wmt_call, osm_ways_table):
 
 @pytest.fixture
 def complex_way(conn, way_factory, joined_way_factory):
-    way_factory(1, 'LINESTRING(0 0, 100 100)')
-    way_factory(2, 'LINESTRING(100 100, 120 0)')
-    way_factory(3, 'LINESTRING(100 100, 0 120)')
-    way_factory(4, 'LINESTRING(0 120, 0 140)')
+    way_factory(1, 'LINESTRING(0 0, 100 100)', tags={'this' : 'that', 'me': 'you'})
+    way_factory(2, 'LINESTRING(100 100, 120 0)', tags={'this' : 'that', 'me': 'you'})
+    way_factory(3, 'LINESTRING(100 100, 0 120)', tags={'this' : 'that', 'me': 'you'})
+    way_factory(4, 'LINESTRING(0 120, 0 140)', tags={'this' : 'that', 'me': 'you'})
 
     return joined_way_factory(1, 2, 3, 4)
 
@@ -86,6 +100,15 @@ async def test_info_complex_way(wmt_call, complex_way):
     assert data['type'] == 'wayset'
     assert data['id'] == complex_way
     assert data['bbox'] == [0, 0, 120, 140]
+
+    route = data['route']
+    assert route['route_type'] == 'route'
+    assert isinstance(route['main'], list)
+    assert len(route['main']) == 1
+    main = route['main'][0]
+    assert main['route_type'] == 'linear'
+    assert isinstance(main['ways'], list)
+    assert len(main['ways']) == 4
 
 
 async def test_geometry_geojson(wmt_call, complex_way):

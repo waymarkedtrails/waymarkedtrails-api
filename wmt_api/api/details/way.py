@@ -5,6 +5,7 @@
 import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
+from geoalchemy2 import Geography
 from geoalchemy2.shape import to_shape
 
 from ...common import params
@@ -30,17 +31,45 @@ class APIDetailsWay(Router):
     async def on_get_info(self, conn, req, resp, oid):
         locale = params.get_locale(req)
         r = self.context.db.tables.ways.data
-        o = self.context.db.osmdata.way.data
 
         sql = sa.select(*DetailedRouteItem.make_selectables(r)).where(r.c.id == oid)
+        sql = sql.add_columns(sa.func.ST_Length(sa.cast(gf.ST_Transform(r.c.geom, 4326), Geography))
+                                .label('way_length'),
+                              r.c.geom.ST_AsGeoJSON().label('geom'))
 
         row = (await conn.execute(sql)).first()
 
         if row is None:
             raise falcon.HTTPNotFound()
 
+        route_len = int(row.way_length)
+        route_writer = JsonWriter()
+        route_writer.start_object()\
+            .keyval('route_type', 'route')\
+            .keyval('length', route_len)\
+            .keyval('linear', 'yes')\
+            .keyval('start', 0)\
+            .key('main').start_array().start_object()\
+                .keyval('route_type', 'linear')\
+                .keyval('length', route_len)\
+                .keyval('linear', 'yes')\
+                .keyval('start', 0)\
+                .key('ways').start_array().start_object()\
+                    .keyval('route_type', 'base')\
+                    .keyval('id', row.id)\
+                    .keyval('length', route_len)\
+                    .keyval('start', 0)\
+                    .keyval('tags', row.tags)\
+                    .keyval('direction', 0)\
+                    .keyval('role', '')\
+                    .key('geometry').raw(row.geom).next()\
+                .end_object().next().end_array()\
+            .end_object().next().end_array()\
+        .end_object()
+
         writer = JsonWriter()
-        DetailedRouteItem(writer, row, locale, objtype='way').finish()
+        DetailedRouteItem(writer, row, locale, objtype='way',
+                          route=route_writer(), linear='yes').finish()
         writer.to_response(resp)
 
 

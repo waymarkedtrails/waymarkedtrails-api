@@ -33,13 +33,13 @@ class RouteItem:
     def make_selectables(cls, table):
         return [ table.c[col] for col in cls._columns if col in table.c]
 
-    def __init__(self, writer, row, locales=[], objtype='relation'):
+    def __init__(self, writer, row, locales=[], objtype='relation', linear=None):
         self.out = writer
         self.out.start_object()
-        self._add_row_data(row, locales, objtype)
+        self._add_row_data(row, locales, objtype, linear)
 
 
-    def _add_row_data(self, row, locales, objtype):
+    def _add_row_data(self, row, locales, objtype, linear):
         self.out.keyval('type', row._mapping.get('type', objtype))
 
         for e in ('id', 'ref'):
@@ -55,7 +55,7 @@ class RouteItem:
             self._add_optional('name', row, 'name')
 
         self.out.keyval('group', _get_network(row))
-        self.out.keyval('linear', row.linear)
+        self.out.keyval('linear', linear or row.linear)
         self._add_optional('symbol_description', row, None,
                            row.intnames.get('symbol'))
 
@@ -83,20 +83,20 @@ class DetailedRouteItem(RouteItem):
         if 'level' not in table.c and 'piste' in table.c:
             fields.append(table.c.piste)
 
-        fields.append(table.c.route)
+        if 'route' in table.c:
+            fields.append(table.c.route)
         fields.append(table.c.geom.ST_Envelope().label('bbox'))
         fields.append(table.c.tags)
 
         return fields
 
-    def __init__(self, writer, row, locales=[], objtype='relation'):
-        super().__init__(writer, row, locales, objtype)
-        self._add_details(row, locales)
+    def __init__(self, writer, row, locales=[], objtype='relation', route=None, linear=None):
+        super().__init__(writer, row, locales, objtype, linear)
+        self._add_details(row, locales, route)
 
-    def _add_details(self, row, locales):
+    def _add_details(self, row, locales, route):
         loctags = TagStore.make_localized(row.tags, locales)
 
-        self.out.keyval('linear', row.linear)
         self._add_optional('official_length', row, None,
                            loctags.get_length('distance', 'length', unit='m'))
 
@@ -109,7 +109,7 @@ class DetailedRouteItem(RouteItem):
         self.out.keyval('bbox', to_shape(row.bbox).bounds)
         self.out.keyval('tags', row.tags)
 
-        self.out.key('route').raw(row.route).next()
+        self.out.key('route').raw(route or row.route).next()
 
 
     def add_extra_route_info(self, key, routes, locales=[]):

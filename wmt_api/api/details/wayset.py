@@ -8,6 +8,7 @@ import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2.shape import to_shape
+from geoalchemy2 import Geography
 from shapely.geometry import Point, LineString
 
 from ...common import params
@@ -33,34 +34,74 @@ class APIDetailsWayset(Router):
     async def on_get_info(self, conn, req, resp, oid):
         locale = params.get_locale(req)
 
-        r = self.context.db.tables.ways.data
-        o = self.context.db.osmdata.way.data
+        w = self.context.db.tables.ways.data
         ws = self.context.db.tables.joined_ways.data
-        w = self.context.db.tables.ways.data.alias()
 
-        geom = sa.select(ws.c.id, gf.ST_Collect(w.c.geom).label('geom'))\
-                 .join(w, ws.c.child == w.c.id)\
+        # first get the information to create the route
+        sql = sa.select(w.c.id, w.c.tags,
+                        sa.func.ST_Length(sa.cast(gf.ST_Transform(w.c.geom, 4326), Geography))
+                               .label('length'),
+                        w.c.geom.ST_AsGeoJSON().label('geom'))\
+                .join(ws, ws.c.child == w.c.id)\
+                .where(ws.c.id == oid)
+
+        ways_writer = JsonWriter()
+        ways_writer.start_array()
+        total_length = 0
+
+        for row in await conn.execute(sql):
+            ways_writer.start_object()\
+                .keyval('route_type', 'base')\
+                .keyval('id', row.id)\
+                .keyval('length', int(row.length))\
+                .keyval('start', total_length)\
+                .keyval('tags', row.tags)\
+                .keyval('direction', 0)\
+                .keyval('role', '')\
+                .key('geometry').raw(row.geom).next()\
+                .end_object().next()
+            total_length += int(row.length)
+
+        ways_writer.end_array()
+
+        if total_length == 0:
+            raise falcon.HTTPNotFound()
+
+        # then get the information about the way set
+        w2 = self.context.db.tables.ways.data.alias()
+        geom = sa.select(ws.c.id, gf.ST_Collect(w2.c.geom).label('geom'))\
+                 .join(w2, ws.c.child == w2.c.id)\
                  .group_by(ws.c.id)\
                  .subquery()
-
-        fields = [r.c.id, r.c.name, r.c.intnames, r.c.symbol, r.c.ref,
-                  r.c.piste, o.c.tags,
-                  sa.func.ST_Length2dSpheroid(gf.ST_Transform(geom.c.geom, 4326),
-                               sa.text('\'SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]]\'')).label("length"),
-                          geom.c.geom.ST_Envelope().label('bbox')]
-
-        sql = sa.select(*fields)\
-                .join(o, o.c.id == r.c.id)\
-                .join(geom, geom.c.id == oid)\
-                .where(r.c.id == oid)
+        sql = sa.select(w.c.id, w.c.name, w.c.intnames, w.c.symbol, w.c.ref,
+                        w.c.piste, w.c.tags,
+                        geom.c.geom.ST_Envelope().label('bbox'))\
+                 .join(geom, geom.c.id == oid)\
+                 .where(w.c.id == oid)
 
         row = (await conn.execute(sql)).first()
 
         if row is None:
             raise falcon.HTTPNotFound()
 
+        route_writer = JsonWriter()
+        route_writer.start_object()\
+            .keyval('route_type', 'route')\
+            .keyval('length', total_length)\
+            .keyval('linear', 'no')\
+            .keyval('start', 0)\
+            .key('main').start_array().start_object()\
+                .keyval('route_type', 'linear')\
+                .keyval('length', total_length)\
+                .keyval('linear', 'no')\
+                .keyval('start', 0)\
+                .key('ways').raw(ways_writer()).next()\
+            .end_object().next().end_array()\
+        .end_object()
+
         writer = JsonWriter()
-        DetailedRouteItem(writer, row, locale, objtype='wayset').finish()
+        DetailedRouteItem(writer, row, locale, objtype='wayset',
+                          linear='no', route=route_writer()).finish()
         writer.to_response(resp)
 
 

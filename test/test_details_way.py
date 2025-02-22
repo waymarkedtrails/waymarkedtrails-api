@@ -33,6 +33,19 @@ async def test_info(wmt_call, simple_way, language_names):
     assert data['id'] == simple_way
     assert data['name'] == language_names[1]
 
+    route = data['route']
+    assert route['route_type'] == 'route'
+    assert isinstance(route['main'], list)
+    assert len(route['main']) == 1
+    main = route['main'][0]
+    assert main['route_type'] == 'linear'
+    assert isinstance(main['ways'], list)
+    assert len(main['ways']) == 1
+    way = main['ways'][0]
+    assert way['route_type'] == 'base'
+    assert way['tags'] == data['tags']
+    assert way['id'] == data['id']
+
 
 async def test_info_unknown(wmt_call, osm_ways_table, ways_table):
     status, _ = await wmt_call('/v1/details/way/11', expect_success=False)
