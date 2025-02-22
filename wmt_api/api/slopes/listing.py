@@ -53,6 +53,7 @@ class APIListing(Router):
             ws = self.context.db.tables.joined_ways.data
             sql = sa.select(sa.func.coalesce(ws.c.id, w.c.id).label('id'),
                             sa.case((ws.c.id == None, 'way'), else_='wayset').label('type'),
+                            sa.case((ws.c.id == None, 'yes'), else_='no').label('linear'),
                             w.c.name, w.c.intnames, w.c.symbol,
                             w.c.piste).distinct()\
                     .select_from(w.outerjoin(ws, w.c.id == ws.c.child))\
@@ -92,7 +93,7 @@ class APIListing(Router):
 
             sql = sa.select(*sels).where(w.c.id.in_(ways))
 
-            res.add_items(await conn.execute(sql), locale)
+            res.add_items(await conn.execute(sql), locale, linear='yes')
 
         if waysets:
             w = self.context.db.tables.ways.data
@@ -102,7 +103,7 @@ class APIListing(Router):
 
             sql = sa.select(*sels).where(w.c.id.in_(waysets))
 
-            res.add_items(await conn.execute(sql), locale)
+            res.add_items(await conn.execute(sql), locale, linear='no')
 
         res.to_response(resp)
 
@@ -125,6 +126,7 @@ class APIListing(Router):
         ws = self.context.db.tables.joined_ways.data
         wbase = sa.select(sa.func.coalesce(ws.c.id, w.c.id).label('id'),
                           sa.case((ws.c.id == None, 'way'), else_='wayset').label('type'),
+                            sa.case((ws.c.id == None, 'yes'), else_='no').label('linear'),
                           w.c.name, w.c.intnames, w.c.symbol,
                           w.c.piste).distinct()\
                   .select_from(w.outerjoin(ws, w.c.id == ws.c.child))

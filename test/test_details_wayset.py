@@ -100,15 +100,16 @@ async def test_info_complex_way(wmt_call, complex_way):
     assert data['type'] == 'wayset'
     assert data['id'] == complex_way
     assert data['bbox'] == [0, 0, 120, 140]
+    assert data['linear'] == 'no'
 
     route = data['route']
     assert route['route_type'] == 'route'
     assert isinstance(route['main'], list)
-    assert len(route['main']) == 1
+    assert len(route['main']) == 4
     main = route['main'][0]
     assert main['route_type'] == 'linear'
     assert isinstance(main['ways'], list)
-    assert len(main['ways']) == 4
+    assert len(main['ways']) == 1
 
 
 async def test_geometry_geojson(wmt_call, complex_way):

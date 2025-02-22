@@ -26,17 +26,17 @@ class RouteList:
         self.to_ignore = num
 
 
-    def add_items(self, objs, locale):
+    def add_items(self, objs, locale, linear=None):
         for obj in objs:
-            self.add_item(obj, locale)
+            self.add_item(obj, locale, linear)
 
 
-    def add_item(self, obj, locale):
+    def add_item(self, obj, locale, linear=None):
         if self.to_ignore > 0:
             self.to_ignore -= 1
         else:
             self.items += 1
-            RouteItem(self.out, obj, locale).finish()
+            RouteItem(self.out, obj, locale, linear=linear).finish()
             self.out.next()
 
 

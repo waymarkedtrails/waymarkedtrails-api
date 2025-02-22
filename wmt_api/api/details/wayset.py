@@ -51,15 +51,20 @@ class APIDetailsWayset(Router):
 
         for row in await conn.execute(sql):
             ways_writer.start_object()\
-                .keyval('route_type', 'base')\
-                .keyval('id', row.id)\
+                .keyval('route_type', 'linear')\
                 .keyval('length', int(row.length))\
-                .keyval('start', total_length)\
-                .keyval('tags', row.tags)\
-                .keyval('direction', 0)\
-                .keyval('role', '')\
-                .key('geometry').raw(row.geom).next()\
-                .end_object().next()
+                .keyval('start', 0)\
+                .key('ways').start_array().start_object()\
+                    .keyval('route_type', 'base')\
+                    .keyval('id', row.id)\
+                    .keyval('length', int(row.length))\
+                    .keyval('start', total_length)\
+                    .keyval('tags', row.tags)\
+                    .keyval('direction', 0)\
+                    .keyval('role', '')\
+                    .key('geometry').raw(row.geom).next()\
+                    .end_object().next()\
+                .end_array().end_object().next()
             total_length += int(row.length)
 
         ways_writer.end_array()
@@ -90,13 +95,8 @@ class APIDetailsWayset(Router):
             .keyval('length', total_length)\
             .keyval('linear', 'no')\
             .keyval('start', 0)\
-            .key('main').start_array().start_object()\
-                .keyval('route_type', 'linear')\
-                .keyval('length', total_length)\
-                .keyval('linear', 'no')\
-                .keyval('start', 0)\
-                .key('ways').raw(ways_writer()).next()\
-            .end_object().next().end_array()\
+            .key('appendices').raw('[]').next()\
+            .key('main').raw(ways_writer()).next()\
         .end_object()
 
         writer = JsonWriter()

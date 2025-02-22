@@ -49,6 +49,7 @@ class APIDetailsWay(Router):
             .keyval('length', route_len)\
             .keyval('linear', 'yes')\
             .keyval('start', 0)\
+            .key('appendices').raw('[]').next()\
             .key('main').start_array().start_object()\
                 .keyval('route_type', 'linear')\
                 .keyval('length', route_len)\
