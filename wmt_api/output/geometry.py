@@ -5,7 +5,7 @@
 
 from slugify import slugify
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, UTC
 from geoalchemy2.shape import to_shape
 
 from ..common.json_writer import JsonWriter
@@ -72,7 +72,7 @@ class RouteGeometry(object):
                 href=request.uri)
         ET.SubElement(link, 'text').text = 'Waymarked Trails'
 
-        ET.SubElement(meta, 'time').text = datetime.utcnow().isoformat()
+        ET.SubElement(meta, 'time').text = datetime.now(UTC).isoformat()
 
         # and the geometry
         trk = ET.SubElement(root, 'trk')
