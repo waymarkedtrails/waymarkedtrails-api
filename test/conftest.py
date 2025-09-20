@@ -1,12 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import asyncio
 import os
 import itertools
 
 import pytest
+import pytest_asyncio
 import falcon
 from falcon import testing
 import sqlalchemy as sa
@@ -18,23 +19,23 @@ TEST_DATABASE = 'test_wmt_api'
 
 SIMPLEROUTE = '{"route_type":"route","length":10,"linear":"yes","start":0,"main":[{"route_type":"linear","start":0,"length":10,"ways":[{"route_type":"base","start":0,"id":1,"tags":{},"length":10,"direction":0,"role":"","geometry":{"type":"LineString","coordinates":[[10.00,30.00],[10.00,32.00],[10.00,34.00]]}}]}],"appendices":[]}'
 
-@pytest.fixture()
+@pytest_asyncio.fixture()
 def mapname(request):
     return request.param
 
 
-@pytest.fixture()
-def context(mapname, event_loop):
+@pytest_asyncio.fixture()
+async def context(mapname):
     url = sa.engine.url.URL.create('postgresql+psycopg', database=TEST_DATABASE)
     context = Context(mapname, url=url)
 
     yield context
 
-    event_loop.run_until_complete(context.engine.dispose())
+    await context.engine.dispose()
 
 
-@pytest.fixture
-def wmt_call(context):
+@pytest_asyncio.fixture
+async def wmt_call(context):
     app = create_app(context)
     async def _get(url, params=None, expect_success=True, as_json=True,
                    headers={}):
@@ -59,8 +60,8 @@ def wmt_call(context):
     yield _get
 
 
-@pytest.fixture
-def db(mapname, context):
+@pytest_asyncio.fixture
+async def db(mapname, context):
     assert os.system('dropdb --if-exists ' + TEST_DATABASE) == 0
     assert os.system('createdb ' + TEST_DATABASE) == 0
 
@@ -77,89 +78,89 @@ def db(mapname, context):
     engine.dispose()
 
 
-@pytest.fixture
-def conn(db):
+@pytest_asyncio.fixture
+async def conn(db):
     with db.connect().execution_options(isolation_level="AUTOCOMMIT") as conn:
         yield conn
 
 
-@pytest.fixture
-def status_table(db, context):
+@pytest_asyncio.fixture
+async def status_table(db, context):
     context.db.status.create(db)
     return context.db.status
 
 
-@pytest.fixture
-def hierarchy_table(db, context):
+@pytest_asyncio.fixture
+async def hierarchy_table(db, context):
     context.db.tables.hierarchy.create(db)
     return context.db.tables.hierarchy
 
 
-@pytest.fixture
-def segments_table(db, context):
+@pytest_asyncio.fixture
+async def segments_table(db, context):
     context.db.tables.segments.data.create(db)
     return context.db.tables.segments
 
 
-@pytest.fixture
-def relations_table(db, context):
+@pytest_asyncio.fixture
+async def relations_table(db, context):
     context.db.osmdata.relation.create(db)
     return context.db.osmdata.relation
 
 
-@pytest.fixture
-def route_table(db, context):
+@pytest_asyncio.fixture
+async def route_table(db, context):
     context.db.tables.routes.data.create(db)
     return context.db.tables.routes
 
 
-@pytest.fixture
-def osm_ways_table(db, context):
+@pytest_asyncio.fixture
+async def osm_ways_table(db, context):
     context.db.osmdata.way.create(db)
     return context.db.osmdata.way
 
 
-@pytest.fixture
-def osm_nodes_table(db, context):
+@pytest_asyncio.fixture
+async def osm_nodes_table(db, context):
     context.db.osmdata.node.create(db)
     return context.db.osmdata.node
 
 
-@pytest.fixture
-def ways_table(db, context):
+@pytest_asyncio.fixture
+async def ways_table(db, context):
     if 'ways' in context.db.tables:
         context.db.tables.ways.data.create(db)
         return context.db.tables.ways
 
 
-@pytest.fixture
-def relway_table(db, context):
+@pytest_asyncio.fixture
+async def relway_table(db, context):
     if 'relway' in context.db.tables:
         context.db.tables.relway.data.create(db)
         return context.db.tables.relway
 
 
-@pytest.fixture
-def joined_ways_table(db, context):
+@pytest_asyncio.fixture
+async def joined_ways_table(db, context):
     if 'joined_ways' in context.db.tables:
         context.db.tables.joined_ways.data.create(db)
         return context.db.tables.joined_ways
 
 
-@pytest.fixture
-def style_table(db, context):
+@pytest_asyncio.fixture
+async def style_table(db, context):
     context.db.tables.style.data.create(db)
     return context.db.tables.style
 
 
-@pytest.fixture
-def guidepost_table(db, context):
+@pytest_asyncio.fixture
+async def guidepost_table(db, context):
     context.db.tables.guideposts.data.create(db)
     return context.db.tables.guideposts
 
 
-@pytest.fixture
-def style_factory(conn, style_table):
+@pytest_asyncio.fixture
+async def style_factory(conn, style_table):
     segment_id = itertools.count(1)
     def factory(geom, *kwargs):
         geom=f'SRID=3857;{geom}'
@@ -170,8 +171,8 @@ def style_factory(conn, style_table):
     return factory
 
 
-@pytest.fixture
-def way_factory(conn, osm_ways_table, ways_table):
+@pytest_asyncio.fixture
+async def way_factory(conn, osm_ways_table, ways_table):
     def factory(oid, geom, **kwargs):
         conn.execute(osm_ways_table.data.insert()
             .values(dict(id=oid, tags=kwargs.get('tags', {}),
@@ -188,8 +189,8 @@ def way_factory(conn, osm_ways_table, ways_table):
     return None if ways_table is None else factory
 
 
-@pytest.fixture
-def relway_factory(conn, osm_ways_table, relway_table):
+@pytest_asyncio.fixture
+async def relway_factory(conn, osm_ways_table, relway_table):
     def factory(oid, geom, **kwargs):
         conn.execute(osm_ways_table.data.insert()
             .values(dict(id=oid, tags=kwargs.get('tags', {}),
@@ -206,8 +207,8 @@ def relway_factory(conn, osm_ways_table, relway_table):
     return None if relway_table is None else factory
 
 
-@pytest.fixture
-def joined_way_factory(conn, joined_ways_table):
+@pytest_asyncio.fixture
+async def joined_way_factory(conn, joined_ways_table):
     def factory(*ids):
         conn.execute(joined_ways_table.data.insert()
                        .values([dict(id=ids[0], child=x) for x in ids]))
@@ -216,8 +217,8 @@ def joined_way_factory(conn, joined_ways_table):
     return None if joined_ways_table is None else factory
 
 
-@pytest.fixture
-def route_factory(conn, relations_table, route_table):
+@pytest_asyncio.fixture
+async def route_factory(conn, relations_table, route_table):
     def factory(oid, geom, **kwargs):
         conn.execute(relations_table.data.insert()
             .values(dict(id=oid, tags=kwargs.get('tags', {}),
@@ -235,8 +236,8 @@ def route_factory(conn, relations_table, route_table):
     return factory
 
 
-@pytest.fixture
-def segment_factory(conn, segments_table):
+@pytest_asyncio.fixture
+async def segment_factory(conn, segments_table):
     segment_id = itertools.count(1)
     def factory(geom, *rels, nodes={}, ways={}):
         conn.execute(segments_table.data.insert()
@@ -247,8 +248,8 @@ def segment_factory(conn, segments_table):
     return factory
 
 
-@pytest.fixture
-def guidepost_factory(conn, guidepost_table, osm_nodes_table):
+@pytest_asyncio.fixture
+async def guidepost_factory(conn, guidepost_table, osm_nodes_table):
     def factory(oid, x, y, name=None, ele=None, tags=None):
         conn.execute(guidepost_table.data.insert()
                        .values(dict(id=oid, name=name, ele=ele,
