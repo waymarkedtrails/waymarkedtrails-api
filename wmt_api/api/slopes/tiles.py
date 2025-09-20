@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import falcon
 
 import sqlalchemy as sa
@@ -32,9 +32,18 @@ class APITiles(Router):
                       d.c.novice, d.c.easy, d.c.intermediate, d.c.advanced,
                       d.c.expert, d.c.extreme, d.c.freeride, d.c.downhill,
                       d.c.nordic, d.c.skitour, d.c.sled, d.c.hike, d.c.sleigh,
-                      d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
+                      d.c.geom.ST_Intersection(b.as_sql()).label('geometry'))\
               .where(d.c.geom.intersects(b.as_sql()))\
-              .order_by(d.c.id)
+              .order_by(d.c.id)\
+              .subquery()
+
+        q = sa.select(q.c.type, q.c.top_relations, q.c.shields,
+                      q.c.novice, q.c.easy, q.c.intermediate, q.c.advanced,
+                      q.c.expert, q.c.extreme, q.c.freeride, q.c.downhill,
+                      q.c.nordic, q.c.skitour, q.c.sled, q.c.hike, q.c.sleigh,
+                      q.c.geometry.ST_AsGeoJSON().label('geometry'))\
+              .where(q.c.geometry.ST_GeometryType().in_(('ST_LineString', 'ST_MultiLineString')))\
+              .where(sa.not_(q.c.geometry.ST_IsEmpty()))
 
 
         elements = list(await conn.execute(q))
@@ -50,9 +59,16 @@ class APITiles(Router):
                       wayset_id.label('wayset_ids'),
                       d.c.symbol.label('shield'),
                       d.c.difficulty, d.c.piste, # TODO: take apart
-                      d.c.geom.ST_Intersection(b.as_sql()).ST_AsGeoJSON().label('geometry'))\
+                      d.c.geom.ST_Intersection(b.as_sql()).label('geometry'))\
               .where(d.c.geom.intersects(b.as_sql()))\
-              .order_by(d.c.id)
+              .order_by(d.c.id)\
+              .subquery()
+
+        q = sa.select(q.c.type, q.c.way_id, q.c.wayset_ids,
+                      q.c.shield, q.c.difficulty, q.c.piste,
+                      q.c.geometry.ST_AsGeoJSON().label('geometry'))\
+              .where(q.c.geometry.ST_GeometryType().in_(('ST_LineString', 'ST_MultiLineString')))\
+              .where(sa.not_(q.c.geometry.ST_IsEmpty()))
 
         elements.extend(await conn.execute(q))
 

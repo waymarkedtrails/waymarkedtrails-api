@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import asyncio
 
 import pytest
@@ -28,9 +28,10 @@ async def test_empty_tile(wmt_call, simple_routes):
 async def test_full_tile(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/tiles/12/2048/2047.json')
 
-    assert len(data['features']) == 5
+    assert len(data['features']) == 3
 
     for feat in data['features']:
+        print(feat)
         assert 'properties' in feat
         geom = shapely.geometry.shape(feat['geometry'])
         assert geom.geom_type == 'LineString'
