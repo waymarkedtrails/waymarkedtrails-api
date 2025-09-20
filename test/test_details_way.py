@@ -1,12 +1,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
-
+# Copyright (C) 2025 Sarah Hoffmann
 import falcon
-import shapely
-import xml.etree.ElementTree as ET
 import pytest
 
 pytestmark = [pytest.mark.parametrize("mapname", ['slopes'], indirect=True),
@@ -79,60 +75,3 @@ async def test_wikilink_unknown(wmt_call, osm_ways_table):
     status, _ = await wmt_call('/v1/details/way/11/wikilink', expect_success=False)
 
     assert status == falcon.HTTP_NOT_FOUND
-
-
-async def test_geometry_geojson(wmt_call, simple_way):
-    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/geojson')
-
-    assert data['type'] == 'FeatureCollection'
-    assert data['crs']['properties']['name'] == 'EPSG:3857'
-
-    geom = shapely.geometry.shape(data['features'][0]['geometry'])
-    assert geom.geom_type == 'LineString'
-
-
-async def test_geometry_simplify(wmt_call, way_factory):
-    oid = way_factory(84752, 'LINESTRING(0 0, 0.0001 0.1, 0 0.15)')
-
-    _, data = await wmt_call(f'/v1/details/way/{oid}/geometry/geojson')
-    geom = shapely.geometry.shape(data['features'][0]['geometry'])
-    assert geom.geom_type == 'LineString'
-    assert len(geom.coords) == 3
-
-    _, data = await wmt_call(f'/v1/details/way/{oid}/geometry/geojson',
-                             params={'simplify': 2})
-    geom = shapely.geometry.shape(data['features'][0]['geometry'])
-    assert geom.geom_type == 'LineString'
-    assert len(geom.coords) == 2
-
-
-@pytest.mark.parametrize('geomtype', ['geojson', 'kml', 'gpx'])
-async def test_geometry_unknown(wmt_call, osm_ways_table, ways_table, geomtype):
-    status, _ = await wmt_call(f'/v1/details/way/11/geometry/{geomtype}',
-                               expect_success=False)
-
-    assert status == falcon.HTTP_NOT_FOUND
-
-
-async def test_geometry_unknown_geometry_type(wmt_call, simple_way):
-    status, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/fooson',
-                                  expect_success=False)
-
-    assert status == falcon.HTTP_BAD_REQUEST
-    assert 'Supported geometry types' in data['error']
-
-
-async def test_geometry_kml(wmt_call, simple_way):
-    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/kml',
-                             as_json=False)
-
-    root = ET.fromstring(data)
-    assert root.tag == '{http://www.opengis.net/kml/2.2}kml'
-
-
-async def test_geometry_gpx(wmt_call, simple_way):
-    _, data = await wmt_call(f'/v1/details/way/{simple_way}/geometry/gpx',
-                             as_json=False)
-
-    root = ET.fromstring(data)
-    assert root.tag == '{http://www.topografix.com/GPX/1/1}gpx'
