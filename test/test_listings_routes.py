@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
+# Copyright (C) 2025 Sarah Hoffmann
 
 import pytest
 
@@ -18,6 +17,7 @@ def simple_segments(segment_factory):
     segment_factory('2000 2000, 2100 2100', 3)
     segment_factory('0 0, -100 -100', 4)
 
+
 @pytest.fixture
 def simple_routes(simple_segments, route_factory, hierarchy_table):
     route_factory(1, 'LINESTRING(0 0, 100 100)')
@@ -30,6 +30,7 @@ async def test_by_area(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/list/by_area', params={'bbox': '1, 1, 50, 50'})
 
     assert len(data['results']) == 2
+
 
 async def test_by_area_empty(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/list/by_area', params={'bbox': '200, 200, 250, 250'})
@@ -52,7 +53,7 @@ async def test_byids_empty(wmt_call, simple_routes):
 async def test_search(wmt_call, simple_segments, route_factory):
     route_factory(1, 'LINESTRING(0 0, 100 100)', name='Tree route')
     route_factory(2, 'LINESTRING(0 0, 100 100)', name='Foo',
-                  intnames = {'de' : 'Tree route'})
+                  intnames={'de': 'Tree route'})
 
     _, data = await wmt_call('/v1/list/search', params={'query': 'tree'})
 
@@ -61,7 +62,6 @@ async def test_search(wmt_call, simple_segments, route_factory):
 
 async def test_segments(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/list/segments',
-                             params={'bbox': '50, 50, 1, 1', 'relations':'1,3'})
+                             params={'bbox': '50, 50, 1, 1', 'relations': '1,3'})
 
     assert len(data['features']) == 1
-

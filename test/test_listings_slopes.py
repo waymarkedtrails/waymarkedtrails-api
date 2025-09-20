@@ -1,11 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
+# Copyright (C) 2025 Sarah Hoffmann
 
 import pytest
-import falcon
 
 pytestmark = [pytest.mark.parametrize("mapname", ["slopes"], indirect=True),
               pytest.mark.asyncio]
@@ -40,7 +38,7 @@ async def test_by_area(wmt_call, simple_routes):
 
     assert len(data['results']) == 4
 
-    results = { (r['type'], r['id']) : r for r in data['results'] }
+    results = {(r['type'], r['id']): r for r in data['results']}
     assert ('relation', 1) in results
     assert ('relation', 2) in results
     assert ('wayset', 100) in results
@@ -55,8 +53,8 @@ async def test_by_area_empty(wmt_call, simple_routes):
 
 async def test_byids(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/list/by_ids', params={'relations': '3,4,5',
-                                                    'ways': '100, 101',
-                                                    'waysets': '100'})
+                                                        'ways': '100, 101',
+                                                        'waysets': '100'})
 
     assert len(data['results']) == 5
 
@@ -70,7 +68,7 @@ async def test_byids_empty(wmt_call, simple_routes):
 async def test_search_route(wmt_call, simple_routes, route_factory):
     route_factory(11, 'LINESTRING(0 0, 100 100)', name='Tree route')
     route_factory(12, 'LINESTRING(0 0, 100 100)', name='Foo',
-                  intnames = {'de' : 'Tree route'})
+                  intnames={'de': 'Tree route'})
 
     _, data = await wmt_call('/v1/list/search', params={'query': 'tree'})
 
@@ -91,7 +89,7 @@ async def test_search_way(wmt_call, simple_routes, way_factory, joined_way_facto
 
 async def test_segments(wmt_call, simple_routes):
     _, data = await wmt_call('/v1/list/segments',
-                             params={'bbox': '50, 50, 1, 1', 'relations':'1,3',
+                             params={'bbox': '50, 50, 1, 1', 'relations': '1,3',
                                      'ways': '100,102', 'waysets': '100'})
 
     assert len(data['features']) == 4

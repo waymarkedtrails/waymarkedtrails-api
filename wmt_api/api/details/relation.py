@@ -6,12 +6,12 @@ import falcon
 import sqlalchemy as sa
 
 from ...common import params
-from ...common.errors import APIError
 from ...common.json_writer import JsonWriter
 from ...common.router import Router, needs_db
 from ...output.wikilink import get_wikipedia_link
 from ...output.route_item import DetailedRouteItem, RouteItem
 from ...output.elevation import SegmentElevation, get_way_elevation_data
+
 
 class APIDetailsRelation(Router):
 
@@ -20,7 +20,6 @@ class APIDetailsRelation(Router):
         app.add_route(base, self, suffix='info')
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/way-elevation', self, suffix='way_elevation')
-
 
     @needs_db
     async def on_get_info(self, conn, req, resp, oid):
@@ -44,7 +43,7 @@ class APIDetailsRelation(Router):
         w = sa.select(h.c.child).distinct()\
               .where(h.c.parent == oid)
 
-        sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))\
+        sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))
                                         .where(r.c.id != oid).where(r.c.id.in_(w)))
 
         if sections.rowcount > 0:
@@ -54,7 +53,7 @@ class APIDetailsRelation(Router):
         w = sa.select(h.c.parent).distinct()\
               .where(h.c.child == oid).where(h.c.depth == 2)
 
-        sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))\
+        sections = await conn.execute(sa.select(*RouteItem.make_selectables(r))
                                         .where(r.c.id != oid).where(r.c.id.in_(w)))
 
         if sections.rowcount > 0:
@@ -62,7 +61,6 @@ class APIDetailsRelation(Router):
 
         res.finish()
         writer.to_response(resp)
-
 
     @needs_db
     async def on_get_wikilink(self, conn, req, resp, oid):
@@ -78,7 +76,6 @@ class APIDetailsRelation(Router):
             raise falcon.HTTPNotFound()
 
         raise falcon.HTTPSeeOther(url)
-
 
     @needs_db
     async def on_get_way_elevation(self, conn, req, resp, oid):

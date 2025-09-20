@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import falcon
+# Copyright (C) 2025 Sarah Hoffmann
 
 import sqlalchemy as sa
 
@@ -51,8 +50,8 @@ class APITiles(Router):
             q = sa.select(sa.literal('guidepost').label('type'),
                           d.c.id.label('osm_id'), d.c.name, d.c.ele,
                           d.c.geom.ST_AsGeoJSON().label('geometry'))\
-                    .where(d.c.geom.intersects(b.as_sql()))\
-                    .order_by(d.c.id)
+                  .where(d.c.geom.intersects(b.as_sql()))\
+                  .order_by(d.c.id)
 
             elements.extend(await conn.execute(q))
 

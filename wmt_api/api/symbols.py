@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2020-2023 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 from pathlib import Path
 
 import aiofiles
@@ -16,7 +16,6 @@ class APISymbols(Router):
         app.add_route(base + '/from_tags/{style}', self, suffix='from_tags')
         app.add_route(base + '/id/{symbol}', self, suffix='by_uuid')
 
-
     async def on_get_from_tags(self, req, resp, style):
         """ Create a route shield from a set of OSM tags. The tag list must be
             given as keyword parameters."""
@@ -27,11 +26,10 @@ class APISymbols(Router):
         resp.text = sym.create_image('svg')
         resp.content_type = 'image/svg+xml'
 
-
     async def on_get_by_uuid(self, req, resp, symbol):
         """ Retrive a symbol SVG by its ID. These are the IDs returned by the API
             for the routes."""
-        if not '.' in symbol:
+        if '.' not in symbol:
             symbol += '.svg'
         filename = Path(self.context.config.ROUTES.symbol_datadir) / symbol
 

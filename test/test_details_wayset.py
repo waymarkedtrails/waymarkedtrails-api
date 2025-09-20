@@ -9,17 +9,20 @@ import pytest
 pytestmark = [pytest.mark.parametrize("mapname", ['slopes'], indirect=True),
               pytest.mark.asyncio]
 
+
 @pytest.fixture
 def simple_way(conn, way_factory, joined_way_factory):
-    way_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
-                       intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
-                       tags={'this' : 'that', 'me': 'you'})
+    way_factory(458374, 'LINESTRING(0 0, 100 100)',
+                name='Hello World',
+                intnames={'de': 'Hallo Welt', 'fr': 'Bonjour Monde'},
+                tags={'this': 'that', 'me': 'you'})
 
     return joined_way_factory(458374)
 
+
 @pytest.fixture(params=[('de,en', 'Hallo Welt'),
-                       ('ch', 'Hello World'),
-                       ('es,fr', 'Bonjour Monde')])
+                        ('ch', 'Hello World'),
+                        ('es,fr', 'Bonjour Monde')])
 def language_names(request):
     return request.param
 
@@ -42,9 +45,8 @@ async def test_info(wmt_call, simple_way, language_names):
     assert len(main['ways']) == 1
     way = main['ways'][0]
     assert way['route_type'] == 'base'
-    assert way['tags'] == {'this' : 'that', 'me': 'you'}
+    assert way['tags'] == {'this': 'that', 'me': 'you'}
     assert way['id'] == 458374
-
 
 
 async def test_info_unknown(wmt_call, osm_ways_table, ways_table, joined_ways_table):
@@ -55,10 +57,11 @@ async def test_info_unknown(wmt_call, osm_ways_table, ways_table, joined_ways_ta
 
 async def test_wikilink(wmt_call, conn, osm_ways_table):
     oid = 55
-    conn.execute(osm_ways_table.data.insert()\
-        .values(dict(id=oid, tags={'wikipedia:de' : 'Wolke',
-                                   'wikipedia:en' : 'Cloud'},
-                     nodes=[1, 2])))
+    conn.execute(osm_ways_table.data.insert()
+                               .values({'id': oid,
+                                        'tags': {'wikipedia:de': 'Wolke',
+                                                 'wikipedia:en': 'Cloud'},
+                                        'nodes': [1, 2]}))
 
     status, data = await wmt_call(f'/v1/details/wayset/{oid}/wikilink',
                                   expect_success=False, as_json=False,
@@ -83,10 +86,10 @@ async def test_wikilink_unknown(wmt_call, osm_ways_table):
 
 @pytest.fixture
 def complex_way(conn, way_factory, joined_way_factory):
-    way_factory(1, 'LINESTRING(0 0, 100 100)', tags={'this' : 'that', 'me': 'you'})
-    way_factory(2, 'LINESTRING(100 100, 120 0)', tags={'this' : 'that', 'me': 'you'})
-    way_factory(3, 'LINESTRING(100 100, 0 120)', tags={'this' : 'that', 'me': 'you'})
-    way_factory(4, 'LINESTRING(0 120, 0 140)', tags={'this' : 'that', 'me': 'you'})
+    way_factory(1, 'LINESTRING(0 0, 100 100)', tags={'this': 'that', 'me': 'you'})
+    way_factory(2, 'LINESTRING(100 100, 120 0)', tags={'this': 'that', 'me': 'you'})
+    way_factory(3, 'LINESTRING(100 100, 0 120)', tags={'this': 'that', 'me': 'you'})
+    way_factory(4, 'LINESTRING(0 120, 0 140)', tags={'this': 'that', 'me': 'you'})
 
     return joined_way_factory(1, 2, 3, 4)
 

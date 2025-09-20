@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 """
 Functions for parameter conversion.
 """
@@ -94,4 +94,3 @@ def get_locale(req):
     langs.sort(reverse=True)
     seen = {}
     return [seen.setdefault(x, x) for _, x in langs if x not in seen]
-

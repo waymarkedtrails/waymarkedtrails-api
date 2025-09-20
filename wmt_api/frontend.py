@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import os
 import importlib
 import traceback
@@ -13,9 +13,11 @@ from .common.errors import APIError
 from .api.status import APIStatus
 from .api.symbols import APISymbols
 
+
 async def print_traceback(req, resp, ex, params):
     traceback.print_exception(ex)
     raise falcon.HTTPError(falcon.HTTP_500)
+
 
 async def api_error_handler(req, resp, exception, _):
     """ Special error handler that passes message and content type as
@@ -35,6 +37,7 @@ def add_flavour(app, prefix, context):
     map_type.APIListing(context).add_routes(app, prefix + '/v1/list')
     map_type.APITiles(context).add_routes(app, prefix + '/v1/tiles')
     map_type.APIDetails(context).add_routes(app, prefix + '/v1/details')
+
 
 def create_app(context=None):
     app = falcon.asgi.App(cors_enable=True, media_type=falcon.MEDIA_JSON)

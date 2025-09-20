@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 
 from ..common.json_writer import JsonWriter
+
 
 def to_geojson_response(objs, response):
     out = JsonWriter().start_object()\

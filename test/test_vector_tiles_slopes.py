@@ -2,13 +2,13 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2025 Sarah Hoffmann
-import asyncio
 
 import pytest
 import shapely
 
 pytestmark = [pytest.mark.parametrize("mapname", ["slopes"], indirect=True),
               pytest.mark.asyncio]
+
 
 @pytest.fixture
 def simple_routes(conn, style_factory, way_factory, joined_ways_table):

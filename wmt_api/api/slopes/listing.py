@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import falcon
+# Copyright (C) 2025 Sarah Hoffmann
 
 import sqlalchemy as sa
 
@@ -12,6 +11,7 @@ from ...output.route_list import RouteList
 from ...output.route_item import RouteItem
 from ...output.geojson import to_geojson_response
 
+
 class APIListing(Router):
 
     def add_routes(self, app, base):
@@ -19,7 +19,6 @@ class APIListing(Router):
         app.add_route(base + '/by_ids', self, suffix='by_ids')
         app.add_route(base + '/search', self, suffix='search')
         app.add_route(base + '/segments', self, suffix='segments')
-
 
     @needs_db
     async def on_get_by_area(self, conn, req, resp):
@@ -32,18 +31,18 @@ class APIListing(Router):
         h = self.context.db.tables.hierarchy.data
 
         rels = sa.select(sa.func.unnest(s.c.rels).label('rel')).distinct()\
-                    .where(s.c.geom.ST_Intersects(bbox.as_sql())).alias()
+                 .where(s.c.geom.ST_Intersects(bbox.as_sql())).alias()
 
         sels = RouteItem.make_selectables(r)
         sels.append(sa.literal('relation').label('type'))
         sql = sa.select(*sels)\
-                   .where(r.c.top)\
-                   .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
-                                       .where(h.c.child == rels.c.rel)),
-                                 r.c.id.in_(rels)
-                         ))\
-                   .limit(limit)\
-                   .order_by(sa.desc(r.c.piste), r.c.name)
+                .where(r.c.top)\
+                .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
+                                           .where(h.c.child == rels.c.rel)),
+                              r.c.id.in_(rels)
+                              ))\
+                .limit(limit)\
+                .order_by(sa.desc(r.c.piste), r.c.name)
 
         res = RouteList(bbox=bbox)
         res.add_items(await conn.execute(sql), locale)
@@ -64,7 +63,6 @@ class APIListing(Router):
             res.add_items(await conn.execute(sql), locale)
 
         res.to_response(resp)
-
 
     @needs_db
     async def on_get_by_ids(self, conn, req, resp):
@@ -107,7 +105,6 @@ class APIListing(Router):
 
         res.to_response(resp)
 
-
     @needs_db
     async def on_get_search(self, conn, req, resp):
         query = params.as_str(req, 'query')
@@ -126,7 +123,7 @@ class APIListing(Router):
         ws = self.context.db.tables.joined_ways.data
         wbase = sa.select(sa.func.coalesce(ws.c.id, w.c.id).label('id'),
                           sa.case((ws.c.id == None, 'way'), else_='wayset').label('type'),
-                            sa.case((ws.c.id == None, 'yes'), else_='no').label('linear'),
+                          sa.case((ws.c.id == None, 'yes'), else_='no').label('linear'),
                           w.c.name, w.c.intnames, w.c.symbol,
                           w.c.piste).distinct()\
                   .select_from(w.outerjoin(ws, w.c.id == ws.c.child))
@@ -156,9 +153,9 @@ class APIListing(Router):
             if len(objs) <= maxresults:
                 sim = sa.func.similarity(t.c.name, query)
                 res = base.add_columns(sim.label('sim'))\
-                        .where(t.c.name.notlike('(%'))\
-                        .order_by(sa.desc(sim))\
-                        .limit(maxresults - len(objs) + 1)
+                          .where(t.c.name.notlike('(%'))\
+                          .order_by(sa.desc(sim))\
+                          .limit(maxresults - len(objs) + 1)
                 if objs:
                     res = res.where(sim > 0.5)
                 else:
@@ -173,7 +170,6 @@ class APIListing(Router):
                     objs.add_item(r, locale)
 
         objs.to_response(resp)
-
 
     @needs_db
     async def on_get_segments(self, conn, req, resp):
@@ -213,8 +209,9 @@ class APIListing(Router):
             sql = sa.select(sa.literal("wayset").label('type'),
                             ws.c.id.label('id'),
                             sa.func.ST_CollectionHomogenize(
-                                 sa.func.ST_Collect(w.c.geom.ST_Intersection(bbox.as_sql()))).label('geometry')
-                           )\
+                                 sa.func.ST_Collect(w.c.geom.ST_Intersection(bbox.as_sql()))
+                                 ).label('geometry')
+                            )\
                     .select_from(w.join(ws, w.c.id == ws.c.child))\
                     .where(ws.c.id.in_(waysets)).group_by(ws.c.id).alias()
 
@@ -225,4 +222,3 @@ class APIListing(Router):
                 objs.append(x)
 
         to_geojson_response(objs, resp)
-

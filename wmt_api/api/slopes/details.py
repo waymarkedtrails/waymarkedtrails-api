@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 from ...common.router import Router
 from ..details.relation import APIDetailsRelation
 from ..details.way import APIDetailsWay
 from ..details.wayset import APIDetailsWayset
+
 
 class APIDetails(Router):
 

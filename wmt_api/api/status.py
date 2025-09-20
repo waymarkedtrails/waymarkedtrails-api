@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2023 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 
 import sqlalchemy as sa
 
 from ..common.json_writer import JsonWriter
 from ..common.router import Router, needs_db
 
+
 class APIStatus(Router):
 
     def add_routes(self, app, base):
         app.add_route(base, self)
-
 
     @needs_db
     async def on_get(self, conn, req, resp):

@@ -2,7 +2,6 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2025 Sarah Hoffmann
-import falcon
 
 import sqlalchemy as sa
 
@@ -13,6 +12,7 @@ from ...output.geojson import to_geojson_response
 # constants for bbox computation for level 12
 MAPWIDTH = 20037508.34
 TILEWIDTH = MAPWIDTH/(2**11)
+
 
 class APITiles(Router):
 
@@ -45,20 +45,20 @@ class APITiles(Router):
               .where(q.c.geometry.ST_GeometryType().in_(('ST_LineString', 'ST_MultiLineString')))\
               .where(sa.not_(q.c.geometry.ST_IsEmpty()))
 
-
         elements = list(await conn.execute(q))
 
         # Joined ways
         d = self.context.db.tables.ways.data
         ws = self.context.db.tables.joined_ways.data
 
-        wayset_id = sa.select(sa.func.array_agg(ws.c.id).label('ids')).where(ws.c.child == d.c.id).scalar_subquery()
+        wayset_id = sa.select(sa.func.array_agg(ws.c.id).label('ids'))\
+                      .where(ws.c.child == d.c.id).scalar_subquery()
 
         q = sa.select(sa.literal('wayset').label('type'),
                       d.c.id.label('way_id'),
                       wayset_id.label('wayset_ids'),
                       d.c.symbol.label('shield'),
-                      d.c.difficulty, d.c.piste, # TODO: take apart
+                      d.c.difficulty, d.c.piste,  # TODO: take apart
                       d.c.geom.ST_Intersection(b.as_sql()).label('geometry'))\
               .where(d.c.geom.intersects(b.as_sql()))\
               .order_by(d.c.id)\

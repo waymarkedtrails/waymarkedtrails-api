@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
+# Copyright (C) 2025 Sarah Hoffmann
 
 import pytest
 import shapely
@@ -10,13 +9,14 @@ import shapely
 pytestmark = [pytest.mark.parametrize("mapname", ["hiking"], indirect=True),
               pytest.mark.asyncio]
 
+
 @pytest.fixture
 def simple_routes(conn, style_factory, guidepost_table):
     style_factory('LINESTRING(0 0, 100 100)')
     style_factory('LINESTRING(10 10, 50 50)')
     style_factory('LINESTRING(2000 2000, 2100 2100)')
-    style_factory('LINESTRING(0 0, -100 -100)') # results in point geom
-    style_factory('LINESTRING(-6 5, 5 -6)') # results in empty line string
+    style_factory('LINESTRING(0 0, -100 -100)')  # results in point geom
+    style_factory('LINESTRING(-6 5, 5 -6)')  # results in empty line string
 
 
 async def test_empty_tile(wmt_call, simple_routes):

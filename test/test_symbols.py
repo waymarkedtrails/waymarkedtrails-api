@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
+# Copyright (C) 2025 Sarah Hoffmann
 
 import pytest
 import falcon
 
 pytestmark = [pytest.mark.parametrize("mapname", ['hiking', 'slopes'], indirect=True),
               pytest.mark.asyncio]
+
 
 @pytest.fixture
 def symbol_dir(tmp_path, context):

@@ -4,8 +4,7 @@
 # Copyright (C) 2012-2013 Espen Oldeman Lund
 # Copyright (C) 2025 Sarah Hoffmann
 import json
-from math import ceil, fabs
-from collections import OrderedDict
+from math import ceil
 
 from osgeo import gdal
 import numpy
@@ -15,7 +14,7 @@ import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2.shape import to_shape
 from geoalchemy2 import Geography
-from shapely.geometry import Point, LineString
+
 
 class Bbox:
     def __init__(self):
@@ -43,8 +42,8 @@ def round_elevation(ele, base=5):
 
 
 #
-# Code from http://stackoverflow.com/questions/5515720/python-smooth-time-series-data
-# and https://stackoverflow.com/questions/9537543/replace-nans-in-numpy-array-with-closest-non-nan-value
+# Code from http://stackoverflow.com/questions/5515720
+# and https://stackoverflow.com/questions/9537543
 #
 def smooth_and_fill_list(x, window_len=7, window='hanning'):
     mask = numpy.isnan(x)
@@ -54,7 +53,7 @@ def smooth_and_fill_list(x, window_len=7, window='hanning'):
         return x
 
     s = numpy.r_[2 * x[0] - x[window_len-1::-1], x, 2*x[-1] - x[-1:-window_len:-1]]
-    if window == 'flat': #moving average
+    if window == 'flat':  # moving average
         w = numpy.ones(window_len, 'd')
     else:
         w = getattr(numpy, window)(window_len)
@@ -78,8 +77,9 @@ async def get_way_elevation_data(conn, id_col, geom_col, where, step):
 
     sql = sa.select(sql.c.id, sql.c.len, sql.c.first, sql.c.last,
                     sa.case((sql.c.len < (step * 1.1), None),
-                            else_=sql.c.geom.ST_LineInterpolatePoints(step/sql.c.len))
-                                       .ST_Transform(3857).label('mid'))
+                            else_=sql.c.geom.ST_LineInterpolatePoints(step/sql.c.len)
+                                            .ST_Transform(3857))
+                      .label('mid'))
 
     ways = []
     bbox = Bbox()
@@ -139,7 +139,6 @@ class Dem:
 
         return x_pixel, y_pixel
 
-
     def pixel_to_geo(self, x, y):
         g0, g1, g2, g3, g4, g5 = self.transform
 
@@ -166,7 +165,7 @@ class SegmentElevation:
         self.segments = {}
         dem = Dem(str(dem_file.resolve()))
         self.band_array, self.xmax, self.ymin, self.xmin, self.ymax = \
-                                                    dem.raster_array(bounds)
+            dem.raster_array(bounds)
 
     def to_response(self, response):
         response.status = 200
@@ -174,7 +173,6 @@ class SegmentElevation:
         response.text = json.dumps({'min_elevation': int(self.min_ele),
                                     'max_elevation': int(self.max_ele),
                                     'segments': self.segments})
-
 
     def _sum_and_filter(self, xs, ys, eles, step, total):
         max_steps = int(self.max_segment_len/step)
@@ -196,7 +194,7 @@ class SegmentElevation:
                 is_last = i == len(xs) - 1
                 if is_last or i >= start + max_steps or \
                    numpy.max(numpy.abs(numpy.linspace(start_ele, ele, i - start + 1)
-                                        - eles[start:i + 1])) > self.MAX_DEVIATION:
+                                       - eles[start:i + 1])) > self.MAX_DEVIATION:
                     start = i
                     start_ele = ele
                     yield x, y, start_ele, total if is_last else i * step
@@ -221,7 +219,7 @@ class SegmentElevation:
         yi = -(ny - 1) * (yi - self.ymax) / (self.ymax - self.ymin)
 
         # Interpolate elevation values
-        # map_coordinates does cubic interpolation by default, 
+        # map_coordinates does cubic interpolation by default,
         # use "order=1" to preform bilinear interpolation
         elev = smooth_and_fill_list(map_coordinates(self.band_array, [yi, xi], order=1))
 
@@ -234,5 +232,4 @@ class SegmentElevation:
             if ele > (self.max_ele or -10000):
                 self.max_ele = ele
 
-        self.segments[str(sid)] = {'elevation' : elepoints}
-
+        self.segments[str(sid)] = {'elevation': elepoints}

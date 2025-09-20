@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2023 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 import importlib
 import logging
 from pathlib import Path
@@ -12,6 +12,7 @@ from sqlalchemy.engine.url import URL
 from wmt_shields import ShieldFactory
 
 log = logging.getLogger(__name__)
+
 
 class Context:
     """ Provide global settings and the DB engine for the
@@ -50,7 +51,7 @@ class Context:
 
         if url is None:
             url = URL.create('postgresql+psycopg',
-                                 database=self.config.DB_NAME,
-                                 username=self.config.DB_USER,
-                                 password=self.config.DB_PASSWORD)
+                             database=self.config.DB_NAME,
+                             username=self.config.DB_USER,
+                             password=self.config.DB_PASSWORD)
         self.engine = sa_asyncio.create_async_engine(url, echo=False)

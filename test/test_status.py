@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import asyncio
+# Copyright (C) 2025 Sarah Hoffmann
 
 import pytest
 from datetime import datetime, timezone
 
 pytestmark = [pytest.mark.parametrize("mapname", ['hiking', 'slopes'], indirect=True),
               pytest.mark.asyncio]
+
 
 async def test_status_missing_date(wmt_call, status_table):
     _, data = await wmt_call('/v1/status')

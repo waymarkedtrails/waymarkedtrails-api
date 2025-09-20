@@ -2,11 +2,9 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2025 Sarah Hoffmann
-import asyncio
 import os
 import itertools
 
-import pytest
 import pytest_asyncio
 import falcon
 from falcon import testing
@@ -17,7 +15,8 @@ from wmt_api.common.context import Context
 
 TEST_DATABASE = 'test_wmt_api'
 
-SIMPLEROUTE = '{"route_type":"route","length":10,"linear":"yes","start":0,"main":[{"route_type":"linear","start":0,"length":10,"ways":[{"route_type":"base","start":0,"id":1,"tags":{},"length":10,"direction":0,"role":"","geometry":{"type":"LineString","coordinates":[[10.00,30.00],[10.00,32.00],[10.00,34.00]]}}]}],"appendices":[]}'
+SIMPLEROUTE = '{"route_type":"route","length":10,"linear":"yes","start":0,"main":[{"route_type":"linear","start":0,"length":10,"ways":[{"route_type":"base","start":0,"id":1,"tags":{},"length":10,"direction":0,"role":"","geometry":{"type":"LineString","coordinates":[[10.00,30.00],[10.00,32.00],[10.00,34.00]]}}]}],"appendices":[]}'  # noqa
+
 
 @pytest_asyncio.fixture()
 def mapname(request):
@@ -42,13 +41,13 @@ async def wmt_call(context):
         async with testing.ASGIConductor(app) as conductor:
             response = await conductor.simulate_get(url, params=params, headers=headers)
             if expect_success:
-                assert response.status == falcon.HTTP_OK,\
+                assert response.status == falcon.HTTP_OK, \
                        f"Unexpected status: {response.status}\nText: {response.text}"
             if as_json:
-                assert response.json is not None,\
+                assert response.json is not None, \
                        f"Response is not valid json: {response.text}"
 
-            if response.status_code >=300 and response.status_code < 400:
+            if response.status_code >= 300 and response.status_code < 400:
                 out_text = response.headers['location']
             elif as_json:
                 out_text = response.json
@@ -162,11 +161,13 @@ async def guidepost_table(db, context):
 @pytest_asyncio.fixture
 async def style_factory(conn, style_table):
     segment_id = itertools.count(1)
+
     def factory(geom, *kwargs):
-        geom=f'SRID=3857;{geom}'
-        conn.execute(style_table.data.insert()
-                       .values(dict(id=next(segment_id), geom=geom,
-                                    geom100=geom, *kwargs)))
+        geom = f'SRID=3857;{geom}'
+        conn.execute(
+            style_table.data.insert()
+                            .values(dict(id=next(segment_id), geom=geom,
+                                         geom100=geom, *kwargs)))
 
     return factory
 
@@ -174,15 +175,16 @@ async def style_factory(conn, style_table):
 @pytest_asyncio.fixture
 async def way_factory(conn, osm_ways_table, ways_table):
     def factory(oid, geom, **kwargs):
-        conn.execute(osm_ways_table.data.insert()
-            .values(dict(id=oid, tags=kwargs.get('tags', {}),
-                         nodes=kwargs.get('nodes', [1, 2, 3, 4]))))
+        conn.execute(
+            osm_ways_table.data.insert()
+                               .values(dict(id=oid, tags=kwargs.get('tags', {}),
+                                            nodes=kwargs.get('nodes', [1, 2, 3, 4]))))
 
         values = dict(intnames={}, network='', top=True)
         values.update(kwargs)
         values['id'] = oid
         values['geom'] = f'SRID=3857;{geom}'
-        values = { k: v for k, v in values.items() if k in ways_table.data.c }
+        values = {k: v for k, v in values.items() if k in ways_table.data.c}
         conn.execute(ways_table.data.insert().values(values))
         return oid
 
@@ -192,15 +194,16 @@ async def way_factory(conn, osm_ways_table, ways_table):
 @pytest_asyncio.fixture
 async def relway_factory(conn, osm_ways_table, relway_table):
     def factory(oid, geom, **kwargs):
-        conn.execute(osm_ways_table.data.insert()
-            .values(dict(id=oid, tags=kwargs.get('tags', {}),
-                         nodes=kwargs.get('nodes', [1, 2, 3, 4]))))
+        conn.execute(
+            osm_ways_table.data.insert()
+                               .values(dict(id=oid, tags=kwargs.get('tags', {}),
+                                            nodes=kwargs.get('nodes', [1, 2, 3, 4]))))
 
         values = dict(intnames={}, network='', top=True)
         values.update(kwargs)
         values['id'] = oid
         values['geom'] = f'SRID=3857;{geom}'
-        values = { k: v for k, v in values.items() if k in relway_table.data.c }
+        values = {k: v for k, v in values.items() if k in relway_table.data.c}
         conn.execute(relway_table.data.insert().values(values))
         return oid
 
@@ -210,8 +213,9 @@ async def relway_factory(conn, osm_ways_table, relway_table):
 @pytest_asyncio.fixture
 async def joined_way_factory(conn, joined_ways_table):
     def factory(*ids):
-        conn.execute(joined_ways_table.data.insert()
-                       .values([dict(id=ids[0], child=x) for x in ids]))
+        conn.execute(
+            joined_ways_table.data.insert()
+                                  .values([dict(id=ids[0], child=x) for x in ids]))
         return ids[0]
 
     return None if joined_ways_table is None else factory
@@ -220,16 +224,18 @@ async def joined_way_factory(conn, joined_ways_table):
 @pytest_asyncio.fixture
 async def route_factory(conn, relations_table, route_table):
     def factory(oid, geom, **kwargs):
-        conn.execute(relations_table.data.insert()
-            .values(dict(id=oid, tags=kwargs.get('tags', {}),
-                         members=kwargs.get('members', [dict(id=1, type='W', role='')]))))
+        conn.execute(
+            relations_table.data.insert()
+                                .values(dict(id=oid, tags=kwargs.get('tags', {}),
+                                             members=kwargs.get('members',
+                                                                [dict(id=1, type='W', role='')]))))
 
         values = dict(intnames={}, country='de', network='', level=0, top=True,
                       route=SIMPLEROUTE, linear='yes')
         values.update(kwargs)
         values['id'] = oid
         values['geom'] = f'SRID=3857;{geom}'
-        values = { k: v for k, v in values.items() if k in route_table.data.c }
+        values = {k: v for k, v in values.items() if k in route_table.data.c}
         conn.execute(route_table.data.insert().values(values))
         return oid
 
@@ -239,11 +245,13 @@ async def route_factory(conn, relations_table, route_table):
 @pytest_asyncio.fixture
 async def segment_factory(conn, segments_table):
     segment_id = itertools.count(1)
+
     def factory(geom, *rels, nodes={}, ways={}):
-        conn.execute(segments_table.data.insert()
-                      .values(dict(id=next(segment_id), nodes=nodes,
-                                   ways=ways, rels=rels,
-                                   geom=f'SRID=3857;LINESTRING({geom})')))
+        conn.execute(
+            segments_table.data.insert()
+                               .values(dict(id=next(segment_id), nodes=nodes,
+                                            ways=ways, rels=rels,
+                                            geom=f'SRID=3857;LINESTRING({geom})')))
 
     return factory
 
@@ -251,11 +259,12 @@ async def segment_factory(conn, segments_table):
 @pytest_asyncio.fixture
 async def guidepost_factory(conn, guidepost_table, osm_nodes_table):
     def factory(oid, x, y, name=None, ele=None, tags=None):
-        conn.execute(guidepost_table.data.insert()
-                       .values(dict(id=oid, name=name, ele=ele,
-                                    geom=f'SRID=3857;POINT({x} {y})')))
-        conn.execute(osm_nodes_table.data.insert()
-                       .values(dict(id=oid, tags=tags or {}, geom='SRID=4326;POINT(0 0)')))
+        conn.execute(
+            guidepost_table.data.insert()
+                                .values(dict(id=oid, name=name, ele=ele,
+                                             geom=f'SRID=3857;POINT({x} {y})')))
+        conn.execute(
+            osm_nodes_table.data.insert()
+                           .values(dict(id=oid, tags=tags or {}, geom='SRID=4326;POINT(0 0)')))
 
     return factory
-

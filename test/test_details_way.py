@@ -8,15 +8,17 @@ import pytest
 pytestmark = [pytest.mark.parametrize("mapname", ['slopes'], indirect=True),
               pytest.mark.asyncio]
 
+
 @pytest.fixture
 def simple_way(conn, way_factory):
     return way_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
-                       intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
-                       tags={'this' : 'that', 'me': 'you'})
+                       intnames={'de': 'Hallo Welt', 'fr': 'Bonjour Monde'},
+                       tags={'this': 'that', 'me': 'you'})
+
 
 @pytest.fixture(params=[('de,en', 'Hallo Welt'),
-                       ('ch', 'Hello World'),
-                       ('es,fr', 'Bonjour Monde')])
+                        ('ch', 'Hello World'),
+                        ('es,fr', 'Bonjour Monde')])
 def language_names(request):
     return request.param
 
@@ -51,17 +53,18 @@ async def test_info_unknown(wmt_call, osm_ways_table, ways_table):
 
 async def test_wikilink(wmt_call, conn, osm_ways_table):
     oid = 55
-    conn.execute(osm_ways_table.data.insert()\
-        .values(dict(id=oid, tags={'wikipedia:de' : 'Wolke',
-                                   'wikipedia:en' : 'Cloud'},
-                     nodes=[1, 2])))
+    conn.execute(osm_ways_table.data.insert()
+                                    .values({'id': oid,
+                                             'tags': {'wikipedia:de': 'Wolke',
+                                                      'wikipedia:en': 'Cloud'},
+                                             'nodes': [1, 2]}))
 
     status, data = await wmt_call(f'/v1/details/way/{oid}/wikilink',
                                   expect_success=False, as_json=False,
                                   headers={'Accept-Language': 'en,de'})
 
     assert status == falcon.HTTP_SEE_OTHER
-    assert data  == 'https://en.wikipedia.org/wiki/Cloud'
+    assert data == 'https://en.wikipedia.org/wiki/Cloud'
 
     status, data = await wmt_call(f'/v1/details/way/{oid}/wikilink',
                                   expect_success=False, as_json=False,

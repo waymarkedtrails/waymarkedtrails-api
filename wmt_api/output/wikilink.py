@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 
 import json
 import urllib.request
@@ -9,7 +9,8 @@ from urllib.parse import quote
 from osgende.common.tags import TagStore
 
 WIKIPEDIA_BASEURL = 'https://{}.wikipedia.org/wiki/{}'
-WIKIPEDIA_TRANSLATEURL = 'https://{}.wikipedia.org/w/api.php?action=query&prop=langlinks&titles={}&llprop=url&&lllang={}&format=json'
+WIKIPEDIA_TRANSLATEURL = 'https://{}.wikipedia.org/w/api.php?action=query&prop=langlinks&titles={}&llprop=url&&lllang={}&format=json'  # noqa
+
 
 def get_wikipedia_link(tags, locales):
     """ Create a wikipedia link from a list of OSM tags. It scans for
@@ -30,12 +31,12 @@ def get_wikipedia_link(tags, locales):
             url = WIKIPEDIA_TRANSLATEURL.format(k, quote(v.encode('utf8')), lang)
             try:
                 req = urllib.request.Request(url, headers={
-                    'User-Agent' : 'waymarkedtrails.org'
+                    'User-Agent': 'waymarkedtrails.org'
                     })
                 data = urllib.request.urlopen(req).read().decode('utf-8')
                 data = json.loads(data)
-            except:
-                continue # oh well, we tried
+            except Exception:
+                continue  # oh well, we tried
             (pgid, data) = data["query"]["pages"].popitem()
             if 'langlinks' in data:
                 return data['langlinks'][0]['url']

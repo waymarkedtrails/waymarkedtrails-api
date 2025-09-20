@@ -6,15 +6,14 @@ import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
 from geoalchemy2 import Geography
-from geoalchemy2.shape import to_shape
 
 from ...common import params
 from ...common.router import Router, needs_db
-from ...common.errors import APIError
 from ...common.json_writer import JsonWriter
 from ...output.route_item import DetailedRouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.elevation import SegmentElevation, get_way_elevation_data
+
 
 class APIDetailsWay(Router):
 
@@ -23,7 +22,6 @@ class APIDetailsWay(Router):
         app.add_route(base, self, suffix='info')
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/way-elevation', self, suffix='way_elevation')
-
 
     @needs_db
     async def on_get_info(self, conn, req, resp, oid):
@@ -49,28 +47,27 @@ class APIDetailsWay(Router):
             .keyval('start', 0)\
             .key('appendices').raw('[]').next()\
             .key('main').start_array().start_object()\
-                .keyval('route_type', 'linear')\
-                .keyval('length', route_len)\
-                .keyval('linear', 'yes')\
-                .keyval('start', 0)\
-                .key('ways').start_array().start_object()\
-                    .keyval('route_type', 'base')\
-                    .keyval('id', row.id)\
-                    .keyval('length', route_len)\
-                    .keyval('start', 0)\
-                    .keyval('tags', row.tags)\
-                    .keyval('direction', 0)\
-                    .keyval('role', '')\
-                    .key('geometry').raw(row.geom).next()\
-                .end_object().next().end_array()\
+                        .keyval('route_type', 'linear')\
+                        .keyval('length', route_len)\
+                        .keyval('linear', 'yes')\
+                        .keyval('start', 0)\
+                        .key('ways').start_array().start_object()\
+                                    .keyval('route_type', 'base')\
+                                    .keyval('id', row.id)\
+                                    .keyval('length', route_len)\
+                                    .keyval('start', 0)\
+                                    .keyval('tags', row.tags)\
+                                    .keyval('direction', 0)\
+                                    .keyval('role', '')\
+                                    .key('geometry').raw(row.geom).next()\
+                        .end_object().next().end_array()\
             .end_object().next().end_array()\
-        .end_object()
+            .end_object()
 
         writer = JsonWriter()
         DetailedRouteItem(writer, row, locale, objtype='way',
                           route=route_writer(), linear='yes').finish()
         writer.to_response(resp)
-
 
     @needs_db
     async def on_get_wikilink(self, conn, req, resp, oid):
@@ -86,7 +83,6 @@ class APIDetailsWay(Router):
             raise falcon.HTTPNotFound()
 
         raise falcon.HTTPSeeOther(url)
-
 
     @needs_db
     async def on_get_way_elevation(self, conn, req, resp, oid):

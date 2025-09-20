@@ -1,8 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
-import falcon
+# Copyright (C) 2025 Sarah Hoffmann
 
 import sqlalchemy as sa
 
@@ -12,6 +11,7 @@ from ...output.route_list import RouteList
 from ...output.route_item import RouteItem
 from ...output.geojson import to_geojson_response
 
+
 class APIListing(Router):
 
     def add_routes(self, app, base):
@@ -19,7 +19,6 @@ class APIListing(Router):
         app.add_route(base + '/by_ids', self, suffix='by_ids')
         app.add_route(base + '/search', self, suffix='search')
         app.add_route(base + '/segments', self, suffix='segments')
-
 
     @needs_db
     async def on_get_by_area(self, conn, req, resp):
@@ -32,21 +31,20 @@ class APIListing(Router):
         h = self.context.db.tables.hierarchy.data
 
         rels = sa.select(sa.func.unnest(s.c.rels).label('rel')).distinct()\
-                    .where(s.c.geom.ST_Intersects(bbox.as_sql()))
+                 .where(s.c.geom.ST_Intersects(bbox.as_sql()))
 
         sql = sa.select(*RouteItem.make_selectables(r))\
-                   .where(r.c.top)\
-                   .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
-                                       .where(h.c.child == rels.subquery().c.rel)),
-                                 r.c.id.in_(rels)
-                         ))\
-                   .limit(limit)\
-                   .order_by(sa.desc(r.c.level), r.c.name)
+                .where(r.c.top)\
+                .where(sa.or_(r.c.id.in_(sa.select(h.c.parent).distinct()
+                                           .where(h.c.child == rels.subquery().c.rel)),
+                              r.c.id.in_(rels)
+                              ))\
+                .limit(limit)\
+                .order_by(sa.desc(r.c.level), r.c.name)
 
         res = RouteList(bbox=bbox)
         res.add_items(await conn.execute(sql), locale)
         res.to_response(resp)
-
 
     @needs_db
     async def on_get_by_ids(self, conn, req, resp):
@@ -62,7 +60,6 @@ class APIListing(Router):
         res = RouteList(relations=relations)
         res.add_items(await conn.execute(sql), locale)
         res.to_response(resp)
-
 
     @needs_db
     async def on_get_search(self, conn, req, resp):
@@ -130,7 +127,6 @@ class APIListing(Router):
 
         res.to_response(resp)
 
-
     @needs_db
     async def on_get_segments(self, conn, req, resp):
         bbox = params.as_bbox(req, 'bbox')
@@ -139,12 +135,10 @@ class APIListing(Router):
         r = self.context.db.tables.routes.data
 
         sql = sa.select(r.c.id, r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
-                  .where(r.c.id.in_(relations)).alias()
+                .where(r.c.id.in_(relations)).alias()
 
         sql = sa.select(sa.literal("relation").label('type'),
                         sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         to_geojson_response(await conn.execute(sql), resp)
-
-

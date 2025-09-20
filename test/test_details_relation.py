@@ -8,16 +8,17 @@ import pytest
 pytestmark = [pytest.mark.parametrize("mapname", ['hiking', 'slopes'], indirect=True),
               pytest.mark.asyncio]
 
+
 @pytest.fixture
 def simple_route(conn, route_factory, hierarchy_table):
     return route_factory(458374, 'LINESTRING(0 0, 100 100)', name='Hello World',
-                         intnames={'de': 'Hallo Welt', 'fr' : 'Bonjour Monde'},
-                         tags={'this' : 'that', 'me': 'you'})
+                         intnames={'de': 'Hallo Welt', 'fr': 'Bonjour Monde'},
+                         tags={'this': 'that', 'me': 'you'})
 
 
 @pytest.fixture(params=[('de,en', 'Hallo Welt'),
-                       ('ch', 'Hello World'),
-                       ('es,fr', 'Bonjour Monde')])
+                        ('ch', 'Hello World'),
+                        ('es,fr', 'Bonjour Monde')])
 def language_names(request):
     return request.param
 
@@ -30,7 +31,7 @@ def route_geoms(request, conn, route_factory, hierarchy_table):
 
 async def test_info(wmt_call, simple_route, language_names):
     _, data = await wmt_call(f'/v1/details/relation/{simple_route}',
-                            headers={'Accept-Language': language_names[0]})
+                             headers={'Accept-Language': language_names[0]})
 
     assert data['id'] == simple_route
     assert data['name'] == language_names[1]
@@ -42,8 +43,9 @@ async def test_info_with_superroute(wmt_call, conn, simple_route,
                                     relations_table):
     route_factory(44, 'LINESTRING(0 0, 100 100)', name='Super')
 
-    conn.execute(hierarchy_table.data.insert()
-                   .values({'parent': 44, 'child': simple_route, 'depth': 2}))
+    conn.execute(
+        hierarchy_table.data.insert()
+                            .values({'parent': 44, 'child': simple_route, 'depth': 2}))
 
     _, data = await wmt_call(f'/v1/details/relation/{simple_route}')
 
@@ -56,7 +58,6 @@ async def test_info_with_superroute(wmt_call, conn, simple_route,
     assert rdata['name'] == 'Super'
 
 
-
 async def test_info_unknown(wmt_call, relations_table, route_table, hierarchy_table):
     status, _ = await wmt_call('/v1/details/relation/11', expect_success=False)
 
@@ -65,17 +66,18 @@ async def test_info_unknown(wmt_call, relations_table, route_table, hierarchy_ta
 
 async def test_wikilink(wmt_call, conn, relations_table, route_table, hierarchy_table):
     oid = 55
-    conn.execute(relations_table.data.insert()\
-        .values(dict(id=oid, tags={'wikipedia:de' : 'Wolke',
-                                   'wikipedia:en' : 'Cloud'},
-                     members=[dict(id=1, type='W', role='')])))
+    conn.execute(relations_table.data.insert()
+                                     .values({'id': oid,
+                                              'tags': {'wikipedia:de': 'Wolke',
+                                                       'wikipedia:en': 'Cloud'},
+                                              'members': [dict(id=1, type='W', role='')]}))
 
     status, data = await wmt_call(f'/v1/details/relation/{oid}/wikilink',
                                   expect_success=False, as_json=False,
                                   headers={'Accept-Language': 'en,de'})
 
     assert status == falcon.HTTP_SEE_OTHER
-    assert data  == 'https://en.wikipedia.org/wiki/Cloud'
+    assert data == 'https://en.wikipedia.org/wiki/Cloud'
 
     status, data = await wmt_call(f'/v1/details/relation/{oid}/wikilink',
                                   expect_success=False, as_json=False,

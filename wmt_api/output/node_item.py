@@ -1,11 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-only
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 
 from osgende.common.tags import TagStore
 
 from ..common.json_writer import JsonWriter
+
 
 class NodeItem:
     """ Collects detailed information of route points like guideposts

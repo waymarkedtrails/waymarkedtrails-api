@@ -2,22 +2,19 @@
 #
 # This file is part of the Waymarked Trails Map Project
 # Copyright (C) 2025 Sarah Hoffmann
-from array import array
 
 import falcon
 import sqlalchemy as sa
 import geoalchemy2.functions as gf
-from geoalchemy2.shape import to_shape
 from geoalchemy2 import Geography
-from shapely.geometry import Point, LineString
 
 from ...common import params
 from ...common.router import Router, needs_db
-from ...common.errors import APIError
 from ...common.json_writer import JsonWriter
 from ...output.route_item import DetailedRouteItem
 from ...output.wikilink import get_wikipedia_link
 from ...output.elevation import SegmentElevation, get_way_elevation_data
+
 
 class APIDetailsWayset(Router):
 
@@ -26,7 +23,6 @@ class APIDetailsWayset(Router):
         app.add_route(base, self, suffix='info')
         app.add_route(base + '/wikilink', self, suffix='wikilink')
         app.add_route(base + '/way-elevation', self, suffix='way_elevation')
-
 
     @needs_db
     async def on_get_info(self, conn, req, resp, oid):
@@ -53,15 +49,15 @@ class APIDetailsWayset(Router):
                 .keyval('length', int(row.length))\
                 .keyval('start', 0)\
                 .key('ways').start_array().start_object()\
-                    .keyval('route_type', 'base')\
-                    .keyval('id', row.id)\
-                    .keyval('length', int(row.length))\
-                    .keyval('start', total_length)\
-                    .keyval('tags', row.tags)\
-                    .keyval('direction', 0)\
-                    .keyval('role', '')\
-                    .key('geometry').raw(row.geom).next()\
-                    .end_object().next()\
+                            .keyval('route_type', 'base')\
+                            .keyval('id', row.id)\
+                            .keyval('length', int(row.length))\
+                            .keyval('start', total_length)\
+                            .keyval('tags', row.tags)\
+                            .keyval('direction', 0)\
+                            .keyval('role', '')\
+                            .key('geometry').raw(row.geom).next()\
+                            .end_object().next()\
                 .end_array().end_object().next()
             total_length += int(row.length)
 
@@ -79,8 +75,8 @@ class APIDetailsWayset(Router):
         sql = sa.select(w.c.id, w.c.name, w.c.intnames, w.c.symbol, w.c.ref,
                         w.c.piste, w.c.tags,
                         geom.c.geom.ST_Envelope().label('bbox'))\
-                 .join(geom, geom.c.id == oid)\
-                 .where(w.c.id == oid)
+                .join(geom, geom.c.id == oid)\
+                .where(w.c.id == oid)
 
         row = (await conn.execute(sql)).first()
 
@@ -95,13 +91,12 @@ class APIDetailsWayset(Router):
             .keyval('start', 0)\
             .key('appendices').raw('[]').next()\
             .key('main').raw(ways_writer()).next()\
-        .end_object()
+            .end_object()
 
         writer = JsonWriter()
         DetailedRouteItem(writer, row, locale, objtype='wayset',
                           linear='no', route=route_writer()).finish()
         writer.to_response(resp)
-
 
     @needs_db
     async def on_get_wikilink(self, conn, req, resp, oid):
@@ -117,7 +112,6 @@ class APIDetailsWayset(Router):
             raise falcon.HTTPNotFound()
 
         raise falcon.HTTPSeeOther(url)
-
 
     @needs_db
     async def on_get_way_elevation(self, conn, req, resp, oid):

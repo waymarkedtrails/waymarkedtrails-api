@@ -1,15 +1,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
 # This file is part of the Waymarked Trails Map Project
-# Copyright (C) 2024 Sarah Hoffmann
+# Copyright (C) 2025 Sarah Hoffmann
 
-import sqlalchemy as sa
-from geoalchemy2 import Geography
 from geoalchemy2.shape import to_shape
 from osgende.common.tags import TagStore
 from wmt_db.common.route_types import Network
 
-from wmt_db.common.route_types import Network
 
 def _get_network(row):
     mapping = row._mapping
@@ -31,13 +28,12 @@ class RouteItem:
 
     @classmethod
     def make_selectables(cls, table):
-        return [ table.c[col] for col in cls._columns if col in table.c]
+        return [table.c[col] for col in cls._columns if col in table.c]
 
     def __init__(self, writer, row, locales=[], objtype='relation', linear=None):
         self.out = writer
         self.out.start_object()
         self._add_row_data(row, locales, objtype, linear)
-
 
     def _add_row_data(self, row, locales, objtype, linear):
         self.out.keyval('type', row._mapping.get('type', objtype))
@@ -45,10 +41,10 @@ class RouteItem:
         for e in ('id', 'ref'):
             self._add_optional(e, row, e)
 
-        for l in locales:
-            if l in row.intnames:
-                self.out.keyval('name', row.intnames[l])
-                if row.intnames[l] != row.name:
+        for loc in locales:
+            if loc in row.intnames:
+                self.out.keyval('name', row.intnames[loc])
+                if row.intnames[loc] != row.name:
                     self.out.keyval('local_name', row.name)
                 break
         else:
@@ -62,14 +58,12 @@ class RouteItem:
         self._add_optional('itinerary', row, 'itinerary')
         self._add_optional('symbol_id', row, 'symbol')
 
-
     def _add_optional(self, name, row, key, default=None):
         value = row._mapping.get(key, None)
         if value is None:
             value = default
         if value is not None:
             self.out.keyval(name, value)
-
 
     def finish(self):
         self.out.end_object()
@@ -79,7 +73,7 @@ class DetailedRouteItem(RouteItem):
 
     @classmethod
     def make_selectables(cls, table):
-        fields = [ table.c[col] for col in cls._columns if col in table.c]
+        fields = [table.c[col] for col in cls._columns if col in table.c]
         if 'level' not in table.c and 'piste' in table.c:
             fields.append(table.c.piste)
 
@@ -110,7 +104,6 @@ class DetailedRouteItem(RouteItem):
         self.out.keyval('tags', row.tags)
 
         self.out.key('route').raw(route or row.route).next()
-
 
     def add_extra_route_info(self, key, routes, locales=[]):
         self.out.key(key).start_object()
