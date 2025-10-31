@@ -134,11 +134,11 @@ class APIListing(Router):
 
         r = self.context.db.tables.routes.data
 
-        sql = sa.select(r.c.id, r.c.geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
+        sql = sa.select(r.c.id, r.c.render_geom.ST_Intersection(bbox.as_sql()).label('geometry'))\
                 .where(r.c.id.in_(relations)).alias()
 
         sql = sa.select(sa.literal("relation").label('type'),
-                        sql.c.id, sql.c.geometry.ST_AsGeoJSON().label('geometry'))\
+                        sql.c.id, sql.c.geometry.ST_SimplifyVW(1000).ST_AsGeoJSON().label('geometry'))\
                 .where(sa.not_(sa.func.ST_IsEmpty(sql.c.geometry)))
 
         to_geojson_response(await conn.execute(sql), resp)
