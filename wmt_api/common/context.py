@@ -50,8 +50,13 @@ class Context:
         self.db = mapdb_pkg.create_mapdb(self.config, Options())
 
         if url is None:
-            url = URL.create('postgresql+psycopg',
-                             database=self.config.DB_NAME,
-                             username=self.config.DB_USER,
-                             password=self.config.DB_PASSWORD)
+            url_kwargs = {
+                'database': self.config.DB_NAME,
+                'username': self.config.DB_USER,
+                'password': self.config.DB_PASSWORD,
+            }
+            # Add host if configured (for Docker/remote PostgreSQL)
+            if hasattr(self.config, 'DB_HOST') and self.config.DB_HOST:
+                url_kwargs['host'] = self.config.DB_HOST
+            url = URL.create('postgresql+psycopg', **url_kwargs)
         self.engine = sa_asyncio.create_async_engine(url, echo=False)
